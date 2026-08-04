@@ -243,10 +243,11 @@ End Sub
 ' ---------------------------------------------------------------------
 Sub ZarejestrujZaznaczone()
     Dim wsW As Worksheet, wsZ As Worksheet
-    Dim cell As Range, rowsToMove As Object, key As Variant
+    Dim obszar As Range, wiersz As Range, rowsToMove As Object, key As Variant
     Dim rw As Long, rz As Long, n As Long
     Dim vin As String, dataZl As Variant, arr() As Long, i As Long, j As Long, tmp As Long
 
+    On Error GoTo Blad
     Set wsW = ThisWorkbook.Worksheets("W rejestracji")
     Set wsZ = ThisWorkbook.Worksheets("Zarejestrowane")
 
@@ -255,20 +256,28 @@ Sub ZarejestrujZaznaczone()
             vbExclamation, "99rent"
         Exit Sub
     End If
+    If TypeName(Selection) <> "Range" Then
+        MsgBox "Najpierw zaznacz w tabeli wiersze pojazdow do zarejestrowania.", _
+            vbExclamation, "99rent"
+        Exit Sub
+    End If
 
     Set rowsToMove = CreateObject("Scripting.Dictionary")
-    For Each cell In Selection.Cells
-        If cell.Row > ROW_HDR And cell.Row <= LastRow(wsW) Then
-            vin = Trim(CStr(wsW.Cells(cell.Row, 3).Value))
-            If vin <> "" And Not rowsToMove.Exists(cell.Row) Then
-                rowsToMove.Add cell.Row, vin
+    For Each obszar In Selection.Areas
+        For Each wiersz In obszar.Rows
+            rw = wiersz.Row
+            If rw > ROW_HDR And rw <= LastRow(wsW) Then
+                vin = Trim(CStr(wsW.Cells(rw, 3).Value))
+                If vin <> "" And Not rowsToMove.Exists(rw) Then
+                    rowsToMove.Add rw, vin
+                End If
             End If
-        End If
-    Next cell
+        Next wiersz
+    Next obszar
 
     If rowsToMove.Count = 0 Then
-        MsgBox "Zaznacz co najmniej jeden wiersz pojazdu (z VIN) w tabeli.", _
-            vbExclamation, "99rent"
+        MsgBox "Zaznacz co najmniej jeden wiersz pojazdu (z VIN) w tabeli " & _
+            "(wiersze od " & (ROW_HDR + 1) & " w dol).", vbExclamation, "99rent"
         Exit Sub
     End If
 
@@ -325,6 +334,10 @@ Sub ZarejestrujZaznaczone()
     MsgBox "Przeniesiono do katalogu: " & n & " pojazd(y)." & vbCrLf & _
         "Numer rejestracyjny wpisz w kolumnie D katalogu.", _
         vbInformation, "99rent"
+    Exit Sub
+Blad:
+    Application.ScreenUpdating = True
+    MsgBox "Blad podczas przenoszenia: " & Err.Description, vbCritical, "99rent"
 End Sub
 
 
@@ -396,63 +409,118 @@ Private Function LiczStareMiesiace() As Long
 End Function
 
 Sub ArchiwizujStareMiesiace()
-    Dim wsZ As Worksheet, nowy As Workbook, wsA As Worksheet
-    Dim i As Long, r As Long, n As Long, c As Long
-    Dim progu As Date, d As Variant, sciezka As String, plik As String
-
+    On Error GoTo Blad
+    Dim wsZ As Worksheet, i As Long, d As Variant
+    Dim progu As Date, klucz As Variant, razem As Long, opis As String
+    Dim mies As Object
+    Set mies = CreateObject("Scripting.Dictionary")
     Set wsZ = ThisWorkbook.Worksheets("Zarejestrowane")
     progu = DateSerial(Year(Date), Month(Date), 1)
 
-    If LiczStareMiesiace() = 0 Then
+    For i = ROW_HDR + 1 To LastRow(wsZ)
+        d = wsZ.Cells(i, 8).Value
+        If IsDate(d) Then
+            If CDate(d) < progu Then mies(Format(CDate(d), "yyyy-mm")) = 1
+        End If
+    Next i
+
+    If mies.Count = 0 Then
         MsgBox "Brak pojazdow zarejestrowanych w poprzednich miesiacach.", _
             vbInformation, "99rent"
         Exit Sub
     End If
 
     Application.ScreenUpdating = False
-    Set nowy = Workbooks.Add(xlWBATWorksheet)
-    Set wsA = nowy.Worksheets(1)
-    wsA.Name = "Archiwum"
-    For c = 1 To 10
-        wsA.Cells(1, c).Value = wsZ.Cells(ROW_HDR, c).Value
-        wsA.Cells(1, c).Font.Bold = True
-    Next c
+    razem = 0: opis = ""
+    For Each klucz In mies.Keys
+        razem = razem + ArchiwizujMiesiac(CStr(klucz))
+        opis = opis & vbCrLf & "  Archiwum_zarejestrowane_" & klucz & ".xlsx"
+    Next klucz
+    Application.ScreenUpdating = True
 
-    r = 2: n = 0
+    MsgBox "Zarchiwizowano " & razem & " pojazd(y) do plik(ow):" & opis & _
+        vbCrLf & vbCrLf & "Folder: " & SciezkaArchiwum(), vbInformation, "99rent"
+    Exit Sub
+Blad:
+    Application.ScreenUpdating = True
+    Application.DisplayAlerts = True
+    MsgBox "Blad archiwizacji: " & Err.Description, vbCritical, "99rent"
+End Sub
+
+Private Function SciezkaArchiwum() As String
+    SciezkaArchiwum = ThisWorkbook.Path
+    If SciezkaArchiwum = "" Then SciezkaArchiwum = Application.DefaultFilePath
+End Function
+
+Private Function ArchiwizujMiesiac(klucz As String) As Long
+    ' Przenosi pojazdy zarejestrowane w miesiacu 'klucz' (RRRR-MM) do pliku
+    ' Archiwum_zarejestrowane_RRRR-MM.xlsx. Gdy plik istnieje - dopisuje.
+    Dim wsZ As Worksheet, wbA As Workbook, wsA As Worksheet
+    Dim i As Long, r As Long, c As Long, n As Long, d As Variant
+    Dim plik As String, nowyPlik As Boolean
+
+    Set wsZ = ThisWorkbook.Worksheets("Zarejestrowane")
+    plik = SciezkaArchiwum() & Application.PathSeparator & _
+        "Archiwum_zarejestrowane_" & klucz & ".xlsx"
+
+    If Dir(plik) <> "" Then
+        Set wbA = Workbooks.Open(plik)
+        Set wsA = wbA.Worksheets(1)
+        r = wsA.Cells(wsA.Rows.Count, 3).End(xlUp).Row + 1
+        If r < 2 Then r = 2
+        nowyPlik = False
+    Else
+        Set wbA = Workbooks.Add(xlWBATWorksheet)
+        Set wsA = wbA.Worksheets(1)
+        wsA.Name = "Zarejestrowane " & klucz
+        For c = 1 To 10
+            With wsA.Cells(1, c)
+                .Value = wsZ.Cells(ROW_HDR, c).Value
+                .Font.Bold = True
+                .Font.Color = vbWhite
+                .Interior.Color = RGB(63, 63, 63)
+                .Borders.Color = RGB(120, 120, 120)
+                .Borders.Weight = xlThin
+            End With
+        Next c
+        wsA.Rows(1).RowHeight = 24
+        r = 2
+        nowyPlik = True
+    End If
+
+    n = 0
     For i = LastRow(wsZ) To ROW_HDR + 1 Step -1
         d = wsZ.Cells(i, 8).Value
         If IsDate(d) Then
-            If CDate(d) < progu Then
+            If Format(CDate(d), "yyyy-mm") = klucz Then
                 For c = 1 To 10
                     wsA.Cells(r, c).Value = wsZ.Cells(i, c).Value
                 Next c
                 wsA.Cells(r, 7).NumberFormat = "yyyy-mm-dd"
                 wsA.Cells(r, 8).NumberFormat = "yyyy-mm-dd"
+                With wsA.Range(wsA.Cells(r, 1), wsA.Cells(r, 10))
+                    .Interior.Color = RGB(198, 239, 206)
+                    .Borders.Color = RGB(158, 158, 158)
+                    .Borders.Weight = xlThin
+                End With
                 r = r + 1
                 wsZ.Rows(i).Delete Shift:=xlUp
                 n = n + 1
             End If
         End If
     Next i
+
     wsA.Columns("A:J").AutoFit
-
-    sciezka = ThisWorkbook.Path
-    If sciezka = "" Then sciezka = Application.DefaultFilePath
-    plik = sciezka & Application.PathSeparator & _
-        "Archiwum_zarejestrowane_" & Format(Date, "yyyy-mm") & ".xlsx"
-    If Dir(plik) <> "" Then
-        plik = sciezka & Application.PathSeparator & _
-            "Archiwum_zarejestrowane_" & Format(Now, "yyyy-mm-dd_hhmmss") & ".xlsx"
-    End If
     Application.DisplayAlerts = False
-    nowy.SaveAs Filename:=plik, FileFormat:=51
+    If nowyPlik Then
+        wbA.SaveAs Filename:=plik, FileFormat:=51
+    Else
+        wbA.Save
+    End If
     Application.DisplayAlerts = True
-    nowy.Close SaveChanges:=False
-    Application.ScreenUpdating = True
-
-    MsgBox "Zarchiwizowano " & n & " pojazd(y) do pliku:" & vbCrLf & plik, _
-        vbInformation, "99rent"
-End Sub
+    wbA.Close SaveChanges:=False
+    ArchiwizujMiesiac = n
+End Function
 
 ' --------------------------- nawigacja (przyciski na pulpicie) --------
 Sub IdzWRejestracji()

@@ -2,6 +2,7 @@
 """Build the 99rent vehicle-registration workbook (.xlsm with macros/buttons,
 or a formula-identical .xlsx copy for LibreOffice recalc verification)."""
 import collections
+import datetime
 import openpyxl
 import xlsxwriter
 from xlsxwriter.utility import xl_col_to_name
@@ -92,9 +93,68 @@ def canonical(values):
 URZEDY_CANON = ["BEMOWO", "BIAŁOŁĘKA", "OCHOTA", "ŚRÓDMIEŚCIE", "WAWER", "WILANÓW"]
 
 
+ZHDR_ARCH = ["Marka", "Model", "VIN", "Nr rejestracyjny", "Dealer", "Urząd",
+             "Data złożenia", "Data rejestracji", "Czas rejestracji (dni)",
+             "Uwagi"]
+
+
+def write_archives(stare_by_month):
+    """Osobny plik Archiwum_zarejestrowane_RRRR-MM.xlsx na każdy miesiąc,
+    sformatowany jak katalog (ciemny nagłówek, zielone wiersze, kratki)."""
+    for klucz, rows in sorted(stare_by_month.items()):
+        wb = xlsxwriter.Workbook("Archiwum_zarejestrowane_%s.xlsx" % klucz,
+                                 {"remove_timezone": True})
+        ws = wb.add_worksheet("Zarejestrowane %s" % klucz)
+        A = {"font_name": "Arial", "font_size": 10}
+        f_hdr = wb.add_format(dict(A, bold=True, font_color="white",
+                                   bg_color="#3F3F3F", border=1,
+                                   align="center", valign="vcenter"))
+        B = dict(A, bg_color="#C6EFCE", border=1, border_color="#9E9E9E")
+        f_t = wb.add_format(B)
+        f_d = wb.add_format(dict(B, num_format="yyyy-mm-dd"))
+        f_i = wb.add_format(dict(B, num_format="0", align="center"))
+        widths = [14, 20, 23, 17, 17, 15, 14, 15, 15, 32]
+        for c, w in enumerate(widths):
+            ws.set_column(c, c, w)
+        for c, h in enumerate(ZHDR_ARCH):
+            ws.write(0, c, h, f_hdr)
+        ws.set_row(0, 24)
+        for r, z in enumerate(rows, start=1):
+            marka, model, vin, nrrej, dealer, urzad, dzl, datarej, cena, uwagi = z
+            for c, v in ((0, marka), (1, model), (2, vin), (3, nrrej),
+                         (4, dealer), (5, urzad), (9, uwagi)):
+                if v:
+                    ws.write_string(r, c, v, f_t)
+                else:
+                    ws.write_blank(r, c, None, f_t)
+            ws.write_datetime(r, 6, dzl, f_d) if dzl is not None \
+                else ws.write_blank(r, 6, None, f_d)
+            ws.write_datetime(r, 7, datarej, f_d)
+            czas = (datarej.date() - dzl.date()).days if dzl is not None else None
+            ws.write_number(r, 8, czas, f_i) if czas is not None \
+                else ws.write_blank(r, 8, None, f_i)
+        ws.freeze_panes(1, 0)
+        ws.autofilter(0, 0, len(rows), 9)
+        wb.close()
+        print("archiwum:", "Archiwum_zarejestrowane_%s.xlsx" % klucz,
+              "(%d pojazdów)" % len(rows))
+
+
 def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
           logo_small="logo99rent_small.png"):
     wrej, zarej, pilne = load_data()
+
+    # rejestracje ze STARYCH miesięcy od razu do plików archiwum
+    prog = (datetime.date.today().year, datetime.date.today().month)
+    stare_by_month = {}
+    for z in zarej:
+        if z[7] is not None and (z[7].year, z[7].month) < prog:
+            stare_by_month.setdefault("%04d-%02d" % (z[7].year, z[7].month),
+                                      []).append(z)
+    stare_ids = {id(z) for rows in stare_by_month.values() for z in rows}
+    zarej = [z for z in zarej if id(z) not in stare_ids]
+    if stare_by_month:
+        write_archives(stare_by_month)
     marki = canonical([r[0] for r in wrej] + [z[0] for z in zarej])
     dealerzy = canonical([r[3] for r in wrej] + [z[4] for z in zarej])
     wspolwl = canonical([r[4] for r in wrej])
