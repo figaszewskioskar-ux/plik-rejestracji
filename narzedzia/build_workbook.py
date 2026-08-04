@@ -531,19 +531,52 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
     stat_wrej_cell = "$C$4"
     stat_zar_cell = "$C$5"
 
-    # --- zestawienie miesięczne (ostatnie 12 miesięcy) --------------------
-    ws.merge_range(12, 1, 12, 3, "  WG MIESIĄCA (ostatnie 12 mies.)", f_sec_band)
-    ws.set_row(12, 22)
-    ws.write(13, 1, "Miesiąc", f_hdr)
-    ws.write(13, 2, "Złożone wnioski", f_hdr)
-    ws.write(13, 3, "Zarejestrowane", f_hdr)
+    # --- FILTR: licz wg urzędu / marki / dealera / miesiąca ----------------
+    ws.merge_range(11, 1, 11, 3, "  FILTR — policz wg wybranych kryteriów", f_sec_band)
+    ws.set_row(11, 22)
+    filt = [("Miesiąc", "F", 9), ("Urząd", "G", len(URZEDY_CANON) + 1),
+            ("Marka", "H", len(marki) + 1), ("Dealer", "I", len(dealerzy) + 1)]
+    for i, (label, lcol, n) in enumerate(filt):
+        rr = 12 + i
+        ws.write(rr, 1, label, f_tbl_text)
+        ws.write_string(rr, 2, "(wszystkie)", f_input)
+        ws.data_validation(rr, 2, rr, 2,
+                           {"validate": "list",
+                            "source": "=Listy!$%s$2:$%s$%d" % (lcol, lcol, n + 1),
+                            "show_error": False})
+    FM, FU, FMA, FD = "$C$13", "$C$14", "$C$15", "$C$16"
+    d, l = DATA_ROW, LAST
+
+    def sump(sheet, cmarka, cdealer, curzad, cdata):
+        g = lambda col: "%s!$%s$%d:$%s$%d" % (sheet, col, d, col, l)
+        return ("=SUMPRODUCT((%(vin)s<>\"\")"
+                "*IF(%(fu)s=\"(wszystkie)\",1,--(%(urz)s=%(fu)s))"
+                "*IF(%(fm)s=\"(wszystkie)\",1,--(%(mar)s=%(fm)s))"
+                "*IF(%(fd)s=\"(wszystkie)\",1,--(%(dea)s=%(fd)s))"
+                "*IF(%(fmies)s=\"(wszystkie)\",1,"
+                "(%(dat)s>=DATEVALUE(%(fmies)s&\"-01\"))"
+                "*(%(dat)s<EDATE(DATEVALUE(%(fmies)s&\"-01\"),1))))"
+                % {"vin": g("C"), "urz": g(curzad), "mar": g(cmarka),
+                   "dea": g(cdealer), "dat": g(cdata),
+                   "fu": FU, "fm": FMA, "fd": FD, "fmies": FM})
+
+    ws.write(17, 1, "W rejestracji (wg daty złożenia)", f_tbl_text)
+    ws.write_formula(17, 2, sump("'W rejestracji'", "A", "D", "F", "G"), f_val_box)
+    ws.write(18, 1, "Zarejestrowane (wg daty rejestracji)", f_tbl_text)
+    ws.write_formula(18, 2, sump("Zarejestrowane", "A", "E", "F", "H"), f_val_box)
+
+    # --- zestawienie miesięczne: 05.2026 – 12.2026 -------------------------
+    ws.merge_range(20, 1, 20, 3, "  WG MIESIĄCA (05–12.2026)", f_sec_band)
+    ws.set_row(20, 22)
+    ws.write(21, 1, "Miesiąc", f_hdr)
+    ws.write(21, 2, "Złożone wnioski", f_hdr)
+    ws.write(21, 3, "Zarejestrowane", f_hdr)
     f_month = fmt(bg_color="white", border=1, border_color="#D9D9D9",
                   num_format="yyyy-mm", align="center", bold=True)
-    for k in range(12):
-        rr = 14 + k  # 0-indexed
+    for k in range(8):
+        rr = 22 + k  # 0-indexed
         mcell = "$B$%d" % (rr + 1)
-        ws.write_formula(
-            rr, 1, "=DATE(YEAR(TODAY()),MONTH(TODAY())-%d,1)" % k, f_month)
+        ws.write_formula(rr, 1, "=DATE(2026,%d,1)" % (5 + k), f_month)
         ws.write_formula(
             rr, 2,
             "=COUNTIFS('W rejestracji'!$G$%(d)d:$G$%(l)d,\">=\"&%(m)s,"
@@ -630,6 +663,16 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
     for i in range(31):
         ws.write_formula(1 + i, 4, "=TODAY()-%d" % i, f_date)
     ws.set_column(4, 4, 14)
+    # F-I: listy do filtrów PODSUMOWANIA ("(wszystkie)" + wartości)
+    MIESIACE = ["2026-%02d" % m for m in range(5, 13)]
+    for c, (title, vals) in enumerate([
+            ("Filtr miesiąc", MIESIACE), ("Filtr urząd", URZEDY_CANON),
+            ("Filtr marka", marki), ("Filtr dealer", dealerzy)], start=5):
+        ws.write(0, c, title, f_hdr)
+        ws.write_string(1, c, "(wszystkie)", f_text)
+        for i, v in enumerate(vals):
+            ws.write_string(2 + i, c, v, f_text)
+        ws.set_column(c, c, 22)
     ws.hide()
 
     if with_vba:
