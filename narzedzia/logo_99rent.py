@@ -1,13 +1,13 @@
 # -*- coding: utf-8 -*-
 """Generuje logo 99rent wg przesłanego wzoru: czerwony kwadrat, dwie białe
-'9' w stylu pinezek (koło + prosty ścięty ogon) i gruby, zwarty napis RENT."""
+'9'-pinezki (koło + prosty ścięty ogon) i napis RENT (Montserrat Black)."""
 from PIL import Image, ImageDraw, ImageFont
 
 RED = (237, 28, 36)
 S = 1024
 SS = 6  # supersampling
 
-FONT = "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf"
+FONT_RENT = "/usr/share/fonts/opentype/montserrat/Montserrat-Black.otf"
 
 
 def nine(dr, cx, cy, R, tw, tail_y, color, grow=0):
@@ -30,13 +30,13 @@ def main(out="logo99rent.png", out_small="logo99rent_small.png"):
     img = Image.new("RGB", (W, W), RED)
     d = ImageDraw.Draw(img)
 
-    R = int(W * 0.165)
+    R = int(W * 0.175)
     hr = int(R * 0.42)
-    tw = int(R * 0.50)
-    cy = int(W * 0.285)
-    tail_y = int(W * 0.60)
+    tw = int(R * 0.48)
+    cy = int(W * 0.295)
+    tail_y = int(W * 0.615)
     c1 = int(W * 0.315)
-    c2 = c1 + int(R * 1.86)
+    c2 = c1 + int(R * 1.88)
     gap = int(W * 0.010)
 
     nine(d, c1, cy, R, tw, tail_y, "white")
@@ -45,18 +45,16 @@ def main(out="logo99rent.png", out_small="logo99rent_small.png"):
     nine(d, c2, cy, R, tw, tail_y, "white")
     hole(d, c2, cy, hr)
 
-    # RENT — zwarty, bardzo ciężki
-    f = ImageFont.truetype(FONT, int(W * 0.235))
-    sw = int(W * 0.013)
+    # RENT — Montserrat Black, zwarty, na szerokość dziewiątek
+    f = ImageFont.truetype(FONT_RENT, int(W * 0.215))
     text = "RENT"
-    widths = [d.textlength(ch, font=f) + 2 * sw for ch in text]
-    span = W * 0.72
+    widths = [d.textlength(ch, font=f) for ch in text]
+    span = W * 0.74
     gap_l = (span - sum(widths)) / (len(text) - 1)
-    x = (W - span) / 2 + sw
-    y = int(W * 0.815)
+    x = (W - span) / 2
+    y = int(W * 0.775)
     for ch, cw in zip(text, widths):
-        d.text((x, y), ch, font=f, fill="white", anchor="lm",
-               stroke_width=sw, stroke_fill="white")
+        d.text((x, y), ch, font=f, fill="white", anchor="lt")
         x += cw + gap_l
 
     img = img.resize((S, S), Image.LANCZOS)
