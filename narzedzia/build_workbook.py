@@ -93,53 +93,6 @@ def canonical(values):
 URZEDY_CANON = ["BEMOWO", "BIAŁOŁĘKA", "OCHOTA", "ŚRÓDMIEŚCIE", "WAWER", "WILANÓW"]
 
 
-ZHDR_ARCH = ["Marka", "Model", "VIN", "Nr rejestracyjny", "Dealer", "Urząd",
-             "Data złożenia", "Data rejestracji", "Czas rejestracji (dni)",
-             "Uwagi"]
-
-
-def write_archives(stare_by_month):
-    """Osobny plik Archiwum_zarejestrowane_RRRR-MM.xlsx na każdy miesiąc,
-    sformatowany jak katalog (ciemny nagłówek, zielone wiersze, kratki)."""
-    for klucz, rows in sorted(stare_by_month.items()):
-        wb = xlsxwriter.Workbook("Archiwum_zarejestrowane_%s.xlsx" % klucz,
-                                 {"remove_timezone": True})
-        ws = wb.add_worksheet("Zarejestrowane %s" % klucz)
-        A = {"font_name": "Arial", "font_size": 10}
-        f_hdr = wb.add_format(dict(A, bold=True, font_color="white",
-                                   bg_color="#3F3F3F", border=1,
-                                   align="center", valign="vcenter"))
-        B = dict(A, bg_color="#C6EFCE", border=1, border_color="#9E9E9E")
-        f_t = wb.add_format(B)
-        f_d = wb.add_format(dict(B, num_format="yyyy-mm-dd"))
-        f_i = wb.add_format(dict(B, num_format="0", align="center"))
-        widths = [14, 20, 23, 17, 17, 15, 14, 15, 15, 32]
-        for c, w in enumerate(widths):
-            ws.set_column(c, c, w)
-        for c, h in enumerate(ZHDR_ARCH):
-            ws.write(0, c, h, f_hdr)
-        ws.set_row(0, 24)
-        for r, z in enumerate(rows, start=1):
-            marka, model, vin, nrrej, dealer, urzad, dzl, datarej, cena, uwagi = z
-            for c, v in ((0, marka), (1, model), (2, vin), (3, nrrej),
-                         (4, dealer), (5, urzad), (9, uwagi)):
-                if v:
-                    ws.write_string(r, c, v, f_t)
-                else:
-                    ws.write_blank(r, c, None, f_t)
-            ws.write_datetime(r, 6, dzl, f_d) if dzl is not None \
-                else ws.write_blank(r, 6, None, f_d)
-            ws.write_datetime(r, 7, datarej, f_d)
-            czas = (datarej.date() - dzl.date()).days if dzl is not None else None
-            ws.write_number(r, 8, czas, f_i) if czas is not None \
-                else ws.write_blank(r, 8, None, f_i)
-        ws.freeze_panes(1, 0)
-        ws.autofilter(0, 0, len(rows), 9)
-        wb.close()
-        print("archiwum:", "Archiwum_zarejestrowane_%s.xlsx" % klucz,
-              "(%d pojazdów)" % len(rows))
-
-
 def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
           logo_small="logo99rent_small.png"):
     wrej, zarej, pilne = load_data()
@@ -153,8 +106,6 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
                                       []).append(z)
     stare_ids = {id(z) for rows in stare_by_month.values() for z in rows}
     zarej = [z for z in zarej if id(z) not in stare_ids]
-    if stare_by_month:
-        write_archives(stare_by_month)
     marki = canonical([r[0] for r in wrej] + [z[0] for z in zarej])
     dealerzy = canonical([r[3] for r in wrej] + [z[4] for z in zarej])
     wspolwl = canonical([r[4] for r in wrej])
@@ -314,7 +265,7 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
         "5.  ZAREJESTROWANE — pojazd zarejestrowany wcześniej (poza rejestrem) dodasz bezpośrednio przyciskiem DODAJ DO KATALOGU.\n"
         "6.  PODSUMOWANIE — statystyki wg urzędu, dealera i marki oraz czasy rejestracji liczą się automatycznie.\n"
         "7.  ARCHIWUM — na początku każdego miesiąca plik proponuje przeniesienie pojazdów zarejestrowanych w starych miesiącach "
-        "do osobnego pliku archiwum (przycisk ARCHIWIZUJ STARE MIES. w katalogu robi to na żądanie).\n"
+        "do zakładki „Archiwum RRRR-MM” na dole pliku (przycisk ARCHIWIZUJ STARE MIES. w katalogu robi to na żądanie).\n"
         "Żółte pola = pola do wypełnienia.  Duplikaty VIN są blokowane przez przyciski i podświetlane na czerwono w tabelach."
     )
     ws.merge_range(9, 1, 17, 10, instr, f_instr)
@@ -506,9 +457,9 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
                                  "caption": "ARCHIWIZUJ STARE MIES.",
                                  "width": 165, "height": 34})
         ws.write(9, 11, "Przenosi pojazdy zarejestrowane w poprzednich "
-                 "miesiącach do nowego pliku Archiwum_zarejestrowane_RRRR-MM.xlsx "
-                 "(w folderze tego pliku). Przy pierwszym otwarciu w nowym "
-                 "miesiącu plik sam o to zapyta.", f_note)
+                 "miesiącach do zakładki „Archiwum RRRR-MM” na dole pliku. "
+                 "Przy pierwszym otwarciu w nowym miesiącu plik sam o to "
+                 "zapyta.", f_note)
 
     for c, h in enumerate(zhdr):
         ws.write(HDR_ROW - 1, c, h, f_hdr)
@@ -772,6 +723,40 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
             ws.write_string(2 + i, c, v, f_text)
         ws.set_column(c, c, 22)
     ws.hide()
+
+    # ===================================================== ARCHIWA MIESIĘCY
+    zhdr_arch = ["Marka", "Model", "VIN", "Nr rejestracyjny", "Dealer",
+                 "Urząd", "Data złożenia", "Data rejestracji",
+                 "Czas rejestracji (dni)", "Uwagi"]
+    for klucz in sorted(stare_by_month):
+        ws = wb.add_worksheet("Archiwum %s" % klucz)
+        sheet_order.append(ws)
+        ws.set_tab_color("#787878")
+        for c, w in enumerate([14, 20, 23, 17, 17, 15, 14, 15, 15, 32]):
+            ws.set_column(c, c, w)
+        for c, h in enumerate(zhdr_arch):
+            ws.write(0, c, h, f_hdr)
+        ws.set_row(0, 24)
+        for r, z in enumerate(stare_by_month[klucz], start=1):
+            marka, model, vin, nrrej, dealer, urzad, dzl, datarej, cena, uwagi = z
+            for c, v in ((0, marka), (1, model), (2, vin), (3, nrrej),
+                         (4, dealer), (5, urzad), (9, uwagi)):
+                if v:
+                    ws.write_string(r, c, v, f_text_g)
+                else:
+                    ws.write_blank(r, c, None, f_text_g)
+            if dzl is not None:
+                ws.write_datetime(r, 6, dzl, f_date_g)
+            else:
+                ws.write_blank(r, 6, None, f_date_g)
+            ws.write_datetime(r, 7, datarej, f_date_g)
+            czas = (datarej.date() - dzl.date()).days if dzl is not None else None
+            if czas is not None:
+                ws.write_number(r, 8, czas, f_int_g)
+            else:
+                ws.write_blank(r, 8, None, f_int_g)
+        ws.freeze_panes(1, 0)
+        ws.autofilter(0, 0, len(stare_by_month[klucz]), 9)
 
     if with_vba:
         for i, s in enumerate(sheet_order):

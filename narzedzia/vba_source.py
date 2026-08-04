@@ -434,12 +434,12 @@ Sub ArchiwizujStareMiesiace()
     razem = 0: opis = ""
     For Each klucz In mies.Keys
         razem = razem + ArchiwizujMiesiac(CStr(klucz))
-        opis = opis & vbCrLf & "  Archiwum_zarejestrowane_" & klucz & ".xlsx"
+        opis = opis & vbCrLf & "  Archiwum " & klucz
     Next klucz
     Application.ScreenUpdating = True
 
-    MsgBox "Zarchiwizowano " & razem & " pojazd(y) do plik(ow):" & opis & _
-        vbCrLf & vbCrLf & "Folder: " & SciezkaArchiwum(), vbInformation, "99rent"
+    MsgBox "Zarchiwizowano " & razem & " pojazd(y) do zakladek na dole pliku:" & _
+        opis, vbInformation, "99rent"
     Exit Sub
 Blad:
     Application.ScreenUpdating = True
@@ -453,26 +453,25 @@ Private Function SciezkaArchiwum() As String
 End Function
 
 Private Function ArchiwizujMiesiac(klucz As String) As Long
-    ' Przenosi pojazdy zarejestrowane w miesiacu 'klucz' (RRRR-MM) do pliku
-    ' Archiwum_zarejestrowane_RRRR-MM.xlsx. Gdy plik istnieje - dopisuje.
-    Dim wsZ As Worksheet, wbA As Workbook, wsA As Worksheet
+    ' Przenosi pojazdy zarejestrowane w miesiacu 'klucz' (RRRR-MM) do
+    ' zakladki "Archiwum RRRR-MM" na koncu tego skoroszytu.
+    ' Gdy zakladka istnieje - dopisuje na koncu.
+    Dim wsZ As Worksheet, wsA As Worksheet
     Dim i As Long, r As Long, c As Long, n As Long, d As Variant
-    Dim plik As String, nowyPlik As Boolean
+    Dim nazwa As String
 
     Set wsZ = ThisWorkbook.Worksheets("Zarejestrowane")
-    plik = SciezkaArchiwum() & Application.PathSeparator & _
-        "Archiwum_zarejestrowane_" & klucz & ".xlsx"
+    nazwa = "Archiwum " & klucz
 
-    If Dir(plik) <> "" Then
-        Set wbA = Workbooks.Open(plik)
-        Set wsA = wbA.Worksheets(1)
-        r = wsA.Cells(wsA.Rows.Count, 3).End(xlUp).Row + 1
-        If r < 2 Then r = 2
-        nowyPlik = False
-    Else
-        Set wbA = Workbooks.Add(xlWBATWorksheet)
-        Set wsA = wbA.Worksheets(1)
-        wsA.Name = "Zarejestrowane " & klucz
+    On Error Resume Next
+    Set wsA = ThisWorkbook.Worksheets(nazwa)
+    On Error GoTo 0
+
+    If wsA Is Nothing Then
+        Set wsA = ThisWorkbook.Worksheets.Add( _
+            After:=ThisWorkbook.Worksheets(ThisWorkbook.Worksheets.Count))
+        wsA.Name = nazwa
+        wsA.Tab.Color = RGB(120, 120, 120)
         For c = 1 To 10
             With wsA.Cells(1, c)
                 .Value = wsZ.Cells(ROW_HDR, c).Value
@@ -484,8 +483,12 @@ Private Function ArchiwizujMiesiac(klucz As String) As Long
             End With
         Next c
         wsA.Rows(1).RowHeight = 24
+        wsA.Columns(3).ColumnWidth = 23
+        wsA.Columns(10).ColumnWidth = 32
         r = 2
-        nowyPlik = True
+    Else
+        r = wsA.Cells(wsA.Rows.Count, 3).End(xlUp).Row + 1
+        If r < 2 Then r = 2
     End If
 
     n = 0
@@ -509,16 +512,7 @@ Private Function ArchiwizujMiesiac(klucz As String) As Long
             End If
         End If
     Next i
-
     wsA.Columns("A:J").AutoFit
-    Application.DisplayAlerts = False
-    If nowyPlik Then
-        wbA.SaveAs Filename:=plik, FileFormat:=51
-    Else
-        wbA.Save
-    End If
-    Application.DisplayAlerts = True
-    wbA.Close SaveChanges:=False
     ArchiwizujMiesiac = n
 End Function
 
