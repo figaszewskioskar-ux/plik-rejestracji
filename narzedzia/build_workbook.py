@@ -203,6 +203,12 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
     ws.set_column("B:C", 14)
     ws.set_column("D:K", 12)
     header_band(ws, "  RAPORT REJESTRACJI POJAZDÓW", 11)
+    f_clock = fmt(bold=True, font_size=12, font_color=DARK, align="right",
+                  num_format="yyyy-mm-dd  hh:mm")
+    ws.write(1, 8, "stan na:", fmt(font_size=9, font_color="#7F7F7F",
+                                   align="right", valign="vcenter"))
+    ws.merge_range(1, 9, 1, 10, "", f_clock)
+    ws.write_formula(1, 9, "=NOW()", f_clock)
     ws.insert_image("B3", logo, {"x_scale": 0.105, "y_scale": 0.105,
                                  "object_position": 3})
 
@@ -247,6 +253,8 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
         "ZAREJESTROWANE z licznikiem dni. Numer rejestracyjny wpisujesz wprost w kolumnie „Nr rejestracyjny” katalogu.\n"
         "5.  ZAREJESTROWANE — pojazd zarejestrowany wcześniej (poza rejestrem) dodasz bezpośrednio przyciskiem DODAJ DO KATALOGU.\n"
         "6.  PODSUMOWANIE — statystyki wg urzędu, dealera i marki oraz czasy rejestracji liczą się automatycznie.\n"
+        "7.  ARCHIWUM — na początku każdego miesiąca plik proponuje przeniesienie pojazdów zarejestrowanych w starych miesiącach "
+        "do osobnego pliku archiwum (przycisk ARCHIWIZUJ STARE MIES. w katalogu robi to na żądanie).\n"
         "Żółte pola = pola do wypełnienia.  Duplikaty VIN są blokowane przez przyciski i podświetlane na czerwono w tabelach."
     )
     ws.merge_range(9, 1, 17, 10, instr, f_instr)
@@ -434,6 +442,13 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
         ws.insert_button(3, 11, {"macro": "DodajZarejestrowany",
                                  "caption": "DODAJ DO KATALOGU",
                                  "width": 165, "height": 40})
+        ws.insert_button(6, 11, {"macro": "ArchiwizujStareMiesiace",
+                                 "caption": "ARCHIWIZUJ STARE MIES.",
+                                 "width": 165, "height": 34})
+        ws.write(9, 11, "Przenosi pojazdy zarejestrowane w poprzednich "
+                 "miesiącach do nowego pliku Archiwum_zarejestrowane_RRRR-MM.xlsx "
+                 "(w folderze tego pliku). Przy pierwszym otwarciu w nowym "
+                 "miesiącu plik sam o to zapyta.", f_note)
 
     for c, h in enumerate(zhdr):
         ws.write(HDR_ROW - 1, c, h, f_hdr)

@@ -16,6 +16,12 @@ Private Sub Workbook_Open()
     ' (gdy sesja Excela byla w trybie recznym, formuly pokazywaly 0 / 1900-01).
     Application.Calculation = xlCalculationAutomatic
     Application.CalculateFullRebuild
+    Module1.StartZegar
+    Module1.SprawdzArchiwizacje
+End Sub
+
+Private Sub Workbook_BeforeClose(Cancel As Boolean)
+    Module1.StopZegar
 End Sub
 '''
 
@@ -321,6 +327,132 @@ Sub ZarejestrujZaznaczone()
         vbInformation, "99rent"
 End Sub
 
+
+' ---------------------------------------------------------------------
+' Zegar na PULPICIE: komorka z data i godzina odswiezana co minute.
+' ---------------------------------------------------------------------
+Private nextTick As Date
+Private tickArmed As Boolean
+
+Sub StartZegar()
+    On Error Resume Next
+    ThisWorkbook.Worksheets("PULPIT").Range("J2").Value = Now
+    nextTick = Now + TimeSerial(0, 1, 0)
+    Application.OnTime nextTick, "TykZegara"
+    tickArmed = True
+End Sub
+
+Sub TykZegara()
+    On Error Resume Next
+    ThisWorkbook.Worksheets("PULPIT").Range("J2").Value = Now
+    nextTick = Now + TimeSerial(0, 1, 0)
+    Application.OnTime nextTick, "TykZegara"
+    tickArmed = True
+End Sub
+
+Sub StopZegar()
+    On Error Resume Next
+    If tickArmed Then
+        Application.OnTime nextTick, "TykZegara", , False
+        tickArmed = False
+    End If
+End Sub
+
+' ---------------------------------------------------------------------
+' Archiwizacja: pojazdy zarejestrowane w POPRZEDNICH miesiacach
+' przenosza sie do nowego pliku Archiwum_zarejestrowane_RRRR-MM.xlsx
+' (w folderze tego skoroszytu), zeby katalog nie zasmiecal sie starymi
+' wpisami. Uruchamia sie przyciskiem lub automatycznie przy pierwszym
+' otwarciu w nowym miesiacu (z pytaniem).
+' ---------------------------------------------------------------------
+Sub SprawdzArchiwizacje()
+    On Error Resume Next
+    Dim wsL As Worksheet, znacznik As String
+    Set wsL = ThisWorkbook.Worksheets("Listy")
+    znacznik = Format(Date, "yyyy-mm")
+    If CStr(wsL.Range("K1").Value) = znacznik Then Exit Sub
+    wsL.Range("K1").Value = znacznik
+    If LiczStareMiesiace() = 0 Then Exit Sub
+    If MsgBox("Nowy miesiac. W katalogu ZAREJESTROWANE sa pojazdy " & _
+        "zarejestrowane w poprzednich miesiacach (" & LiczStareMiesiace() & _
+        " szt.)." & vbCrLf & "Przeniesc je teraz do pliku archiwum?", _
+        vbYesNo + vbQuestion, "99rent") = vbYes Then
+        ArchiwizujStareMiesiace
+    End If
+End Sub
+
+Private Function LiczStareMiesiace() As Long
+    Dim wsZ As Worksheet, i As Long, n As Long, d As Variant
+    Dim progu As Date
+    Set wsZ = ThisWorkbook.Worksheets("Zarejestrowane")
+    progu = DateSerial(Year(Date), Month(Date), 1)
+    For i = ROW_HDR + 1 To LastRow(wsZ)
+        d = wsZ.Cells(i, 8).Value
+        If IsDate(d) Then
+            If CDate(d) < progu Then n = n + 1
+        End If
+    Next i
+    LiczStareMiesiace = n
+End Function
+
+Sub ArchiwizujStareMiesiace()
+    Dim wsZ As Worksheet, nowy As Workbook, wsA As Worksheet
+    Dim i As Long, r As Long, n As Long, c As Long
+    Dim progu As Date, d As Variant, sciezka As String, plik As String
+
+    Set wsZ = ThisWorkbook.Worksheets("Zarejestrowane")
+    progu = DateSerial(Year(Date), Month(Date), 1)
+
+    If LiczStareMiesiace() = 0 Then
+        MsgBox "Brak pojazdow zarejestrowanych w poprzednich miesiacach.", _
+            vbInformation, "99rent"
+        Exit Sub
+    End If
+
+    Application.ScreenUpdating = False
+    Set nowy = Workbooks.Add(xlWBATWorksheet)
+    Set wsA = nowy.Worksheets(1)
+    wsA.Name = "Archiwum"
+    For c = 1 To 10
+        wsA.Cells(1, c).Value = wsZ.Cells(ROW_HDR, c).Value
+        wsA.Cells(1, c).Font.Bold = True
+    Next c
+
+    r = 2: n = 0
+    For i = LastRow(wsZ) To ROW_HDR + 1 Step -1
+        d = wsZ.Cells(i, 8).Value
+        If IsDate(d) Then
+            If CDate(d) < progu Then
+                For c = 1 To 10
+                    wsA.Cells(r, c).Value = wsZ.Cells(i, c).Value
+                Next c
+                wsA.Cells(r, 7).NumberFormat = "yyyy-mm-dd"
+                wsA.Cells(r, 8).NumberFormat = "yyyy-mm-dd"
+                r = r + 1
+                wsZ.Rows(i).Delete Shift:=xlUp
+                n = n + 1
+            End If
+        End If
+    Next i
+    wsA.Columns("A:J").AutoFit
+
+    sciezka = ThisWorkbook.Path
+    If sciezka = "" Then sciezka = Application.DefaultFilePath
+    plik = sciezka & Application.PathSeparator & _
+        "Archiwum_zarejestrowane_" & Format(Date, "yyyy-mm") & ".xlsx"
+    If Dir(plik) <> "" Then
+        plik = sciezka & Application.PathSeparator & _
+            "Archiwum_zarejestrowane_" & Format(Now, "yyyy-mm-dd_hhmmss") & ".xlsx"
+    End If
+    Application.DisplayAlerts = False
+    nowy.SaveAs Filename:=plik, FileFormat:=51
+    Application.DisplayAlerts = True
+    nowy.Close SaveChanges:=False
+    Application.ScreenUpdating = True
+
+    MsgBox "Zarchiwizowano " & n & " pojazd(y) do pliku:" & vbCrLf & plik, _
+        vbInformation, "99rent"
+End Sub
 
 ' --------------------------- nawigacja (przyciski na pulpicie) --------
 Sub IdzWRejestracji()
