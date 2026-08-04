@@ -584,6 +584,14 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
     header_band(ws, "  PODSUMOWANIE REJESTRACJI", 15)
     nav_button(ws, 14)
     ws.hide_gridlines(2)
+    if with_vba:
+        ws.insert_button(1, 12, {"macro": "GenerujRaport",
+                                 "caption": "GENERUJ RAPORT (PLIK)",
+                                 "width": 175, "height": 30})
+        ws.merge_range(1, 9, 1, 11,
+                       "Tworzy gotowy do wysłania plik xlsx z kluczowymi "
+                       "liczbami i listą rejestracji z bieżącego miesiąca →",
+                       f_note)
 
     ws.merge_range(2, 1, 2, 2, "  STATYSTYKI", f_sec_band)
     ws.set_row(2, 22)

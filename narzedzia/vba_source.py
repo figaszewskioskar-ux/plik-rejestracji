@@ -522,6 +522,185 @@ Private Function ArchiwizujMiesiac(klucz As String) As Long
     ArchiwizujMiesiac = n
 End Function
 
+' ---------------------------------------------------------------------
+' Przycisk: GENERUJ RAPORT (arkusz "PODSUMOWANIE")
+' Tworzy ladny, gotowy do wyslania plik z najwazniejszymi informacjami:
+' pojazdy w rejestracji, zarejestrowane w biezacym miesiacu, statystyki
+' wg urzedu oraz lista aut zarejestrowanych w tym miesiacu.
+' ---------------------------------------------------------------------
+Sub GenerujRaport()
+    On Error GoTo Blad
+    Dim wsW As Worksheet, wsZ As Worksheet
+    Dim wbR As Workbook, ws As Worksheet
+    Dim i As Long, r As Long, n As Long
+    Dim wRej As Long, wKat As Long, wMies As Long, sumaDni As Double, ileDni As Long
+    Dim maxCzek As Long, d As Variant, dz As Variant
+    Dim progu As Date, plik As String
+    Dim urz As Object, k As Variant
+
+    Set wsW = ThisWorkbook.Worksheets("W rejestracji")
+    Set wsZ = ThisWorkbook.Worksheets("Zarejestrowane")
+    progu = DateSerial(Year(Date), Month(Date), 1)
+    Set urz = CreateObject("Scripting.Dictionary")
+
+    ' zbierz liczby
+    For i = ROW_HDR + 1 To LastRow(wsW)
+        If Trim(CStr(wsW.Cells(i, 3).Value)) <> "" Then
+            wRej = wRej + 1
+            k = UCase(Trim(CStr(wsW.Cells(i, 6).Value)))
+            If k = "" Then k = "(brak urzedu)"
+            urz(k) = urz(k) + 1
+            dz = wsW.Cells(i, 7).Value
+            If IsDate(dz) Then
+                If Date - CDate(dz) > maxCzek Then maxCzek = Date - CDate(dz)
+            End If
+        End If
+    Next i
+    For i = ROW_HDR + 1 To LastRow(wsZ)
+        If Trim(CStr(wsZ.Cells(i, 3).Value)) <> "" Then
+            wKat = wKat + 1
+            d = wsZ.Cells(i, 8).Value
+            If IsDate(d) Then
+                If CDate(d) >= progu Then wMies = wMies + 1
+            End If
+            If IsNumeric(wsZ.Cells(i, 9).Value) And _
+               Trim(CStr(wsZ.Cells(i, 9).Value)) <> "" Then
+                sumaDni = sumaDni + CDbl(wsZ.Cells(i, 9).Value)
+                ileDni = ileDni + 1
+            End If
+        End If
+    Next i
+
+    Application.ScreenUpdating = False
+    Set wbR = Workbooks.Add(xlWBATWorksheet)
+    Set ws = wbR.Worksheets(1)
+    ws.Name = "Raport"
+
+    ' pasek tytulu
+    With ws.Range("A1:F1")
+        .Merge
+        .Value = "  RAPORT REJESTRACJI 99rent  -  stan na " & _
+            Format(Now, "yyyy-mm-dd hh:mm")
+        .Font.Bold = True
+        .Font.Size = 14
+        .Font.Color = vbWhite
+        .Interior.Color = RGB(227, 6, 19)
+    End With
+    ws.Rows(1).RowHeight = 30
+
+    ' kluczowe liczby
+    r = 3
+    ws.Cells(r, 1).Value = "KLUCZOWE LICZBY"
+    ws.Cells(r, 1).Font.Bold = True
+    ws.Cells(r, 1).Font.Color = RGB(227, 6, 19)
+    r = r + 1
+    Dim et(4) As String, wa(4) As Variant
+    et(0) = "Pojazdy w rejestracji (oczekujace)": wa(0) = wRej
+    et(1) = "Pojazdy w katalogu zarejestrowanych": wa(1) = wKat
+    et(2) = "Zarejestrowane w biezacym miesiacu (" & Format(Date, "yyyy-mm") & ")": wa(2) = wMies
+    If ileDni > 0 Then
+        et(3) = "Sredni czas rejestracji (dni)": wa(3) = Round(sumaDni / ileDni, 1)
+    Else
+        et(3) = "Sredni czas rejestracji (dni)": wa(3) = "-"
+    End If
+    et(4) = "Najdluzej oczekujacy (dni od zlozenia)": wa(4) = maxCzek
+    For i = 0 To 4
+        ws.Cells(r + i, 1).Value = et(i)
+        ws.Cells(r + i, 3).Value = wa(i)
+        With ws.Range(ws.Cells(r + i, 1), ws.Cells(r + i, 3))
+            .Borders.Color = RGB(200, 200, 200)
+            .Borders.Weight = xlThin
+            .Interior.Color = vbWhite
+        End With
+        ws.Cells(r + i, 3).Font.Bold = True
+        ws.Cells(r + i, 3).Font.Color = RGB(227, 6, 19)
+        ws.Cells(r + i, 3).HorizontalAlignment = xlCenter
+    Next i
+    r = r + 6
+
+    ' w rejestracji wg urzedu
+    ws.Cells(r, 1).Value = "W REJESTRACJI WG URZEDU"
+    ws.Cells(r, 1).Font.Bold = True
+    ws.Cells(r, 1).Font.Color = RGB(227, 6, 19)
+    r = r + 1
+    For Each k In urz.Keys
+        ws.Cells(r, 1).Value = CStr(k)
+        ws.Cells(r, 3).Value = urz(k)
+        With ws.Range(ws.Cells(r, 1), ws.Cells(r, 3))
+            .Borders.Color = RGB(200, 200, 200)
+            .Borders.Weight = xlThin
+            .Interior.Color = RGB(255, 249, 196)
+        End With
+        ws.Cells(r, 3).HorizontalAlignment = xlCenter
+        r = r + 1
+    Next k
+    r = r + 1
+
+    ' lista: zarejestrowane w biezacym miesiacu
+    ws.Cells(r, 1).Value = "ZAREJESTROWANE W TYM MIESIACU (" & _
+        Format(Date, "yyyy-mm") & ")"
+    ws.Cells(r, 1).Font.Bold = True
+    ws.Cells(r, 1).Font.Color = RGB(227, 6, 19)
+    r = r + 1
+    Dim naglowki As Variant
+    naglowki = Array("Marka", "Model", "VIN", "Nr rejestracyjny", _
+        "Data rejestracji", "Czas (dni)")
+    For i = 0 To 5
+        With ws.Cells(r, 1 + i)
+            .Value = naglowki(i)
+            .Font.Bold = True
+            .Font.Color = vbWhite
+            .Interior.Color = RGB(63, 63, 63)
+            .Borders.Weight = xlThin
+        End With
+    Next i
+    r = r + 1
+    n = 0
+    For i = ROW_HDR + 1 To LastRow(wsZ)
+        d = wsZ.Cells(i, 8).Value
+        If IsDate(d) Then
+            If CDate(d) >= progu Then
+                ws.Cells(r, 1).Value = wsZ.Cells(i, 1).Value
+                ws.Cells(r, 2).Value = wsZ.Cells(i, 2).Value
+                ws.Cells(r, 3).Value = wsZ.Cells(i, 3).Value
+                ws.Cells(r, 4).Value = wsZ.Cells(i, 4).Value
+                ws.Cells(r, 5).Value = CDate(d)
+                ws.Cells(r, 5).NumberFormat = "yyyy-mm-dd"
+                ws.Cells(r, 6).Value = wsZ.Cells(i, 9).Value
+                With ws.Range(ws.Cells(r, 1), ws.Cells(r, 6))
+                    .Interior.Color = RGB(198, 239, 206)
+                    .Borders.Color = RGB(158, 158, 158)
+                    .Borders.Weight = xlThin
+                End With
+                r = r + 1
+                n = n + 1
+            End If
+        End If
+    Next i
+    If n = 0 Then
+        ws.Cells(r, 1).Value = "(brak rejestracji w biezacym miesiacu)"
+        ws.Cells(r, 1).Font.Italic = True
+    End If
+
+    ws.Columns("A:F").AutoFit
+    If ws.Columns(1).ColumnWidth < 34 Then ws.Columns(1).ColumnWidth = 34
+
+    plik = SciezkaArchiwum() & Application.PathSeparator & _
+        "Raport_99rent_" & Format(Now, "yyyy-mm-dd_hhmm") & ".xlsx"
+    Application.DisplayAlerts = False
+    wbR.SaveAs Filename:=plik, FileFormat:=51
+    Application.DisplayAlerts = True
+    wbR.Close SaveChanges:=False
+    Application.ScreenUpdating = True
+
+    MsgBox "Raport zapisany:" & vbCrLf & plik, vbInformation, "99rent"
+    Exit Sub
+Blad:
+    Application.ScreenUpdating = True
+    Application.DisplayAlerts = True
+    MsgBox "Blad generowania raportu: " & Err.Description, vbCritical, "99rent"
+End Sub
+
 ' --------------------------- nawigacja (przyciski na pulpicie) --------
 Sub IdzWRejestracji()
     Application.Goto ThisWorkbook.Worksheets("W rejestracji").Range("A1"), True
