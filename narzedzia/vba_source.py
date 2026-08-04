@@ -242,15 +242,18 @@ End Sub
 ' rejestracji. Numer rejestracyjny nadasz potem w zakladce Nr rejestracyjny.
 ' ---------------------------------------------------------------------
 Sub ZarejestrujZaznaczone()
+    Dim krok As String
     Dim wsW As Worksheet, wsZ As Worksheet
     Dim obszar As Range, wiersz As Range, rowsToMove As Object, key As Variant
     Dim rw As Long, rz As Long, n As Long
     Dim vin As String, dataZl As Variant, arr() As Long, i As Long, j As Long, tmp As Long
 
     On Error GoTo Blad
+    krok = "start"
     Set wsW = ThisWorkbook.Worksheets("W rejestracji")
     Set wsZ = ThisWorkbook.Worksheets("Zarejestrowane")
 
+    krok = "sprawdzanie zaznaczenia"
     If ActiveSheet.Name <> wsW.Name Then
         MsgBox "Przejdz do arkusza W rejestracji i zaznacz wiersze pojazdow.", _
             vbExclamation, "99rent"
@@ -262,6 +265,7 @@ Sub ZarejestrujZaznaczone()
         Exit Sub
     End If
 
+    krok = "zbieranie wierszy"
     Set rowsToMove = CreateObject("Scripting.Dictionary")
     For Each obszar In Selection.Areas
         For Each wiersz In obszar.Rows
@@ -281,6 +285,7 @@ Sub ZarejestrujZaznaczone()
         Exit Sub
     End If
 
+    StopZegar
     If MsgBox("Przeniesc " & rowsToMove.Count & " pojazd(y) do katalogu " & _
         "ZAREJESTROWANE z dzisiejsza data rejestracji?" & vbCrLf & _
         "Numer rejestracyjny wpiszesz w kolumnie D katalogu.", _
@@ -305,6 +310,7 @@ Sub ZarejestrujZaznaczone()
     n = 0
     For i = 0 To UBound(arr)
         rw = arr(i)
+        krok = "przenoszenie wiersza " & rw
         vin = Trim(CStr(wsW.Cells(rw, 3).Value))
         If FindVinRow(wsZ, vin) = 0 Then
             dataZl = wsW.Cells(rw, 7).Value
@@ -334,15 +340,18 @@ Sub ZarejestrujZaznaczone()
     MsgBox "Przeniesiono do katalogu: " & n & " pojazd(y)." & vbCrLf & _
         "Numer rejestracyjny wpisz w kolumnie D katalogu.", _
         vbInformation, "99rent"
+    StartZegar
     Exit Sub
 Blad:
     Application.ScreenUpdating = True
-    MsgBox "Blad podczas przenoszenia: " & Err.Description, vbCritical, "99rent"
+    MsgBox "Blad podczas przenoszenia (etap: " & krok & "):" & vbCrLf & _
+        Err.Number & " - " & Err.Description, vbCritical, "99rent"
 End Sub
 
 
 ' ---------------------------------------------------------------------
-' Zegar na PULPICIE: data i godzina z sekundami, odswiezana co sekunde.
+' Zegar na PULPICIE: data i godzina z sekundami, odswiezany co 30 s
+' (czestszy zapis czyscilby schowek i przerywal prace w arkuszach).
 ' ---------------------------------------------------------------------
 Private nextTick As Date
 Private tickArmed As Boolean
@@ -350,7 +359,7 @@ Private tickArmed As Boolean
 Sub StartZegar()
     On Error Resume Next
     ThisWorkbook.Worksheets("PULPIT").Range("J2").Value = Now
-    nextTick = Now + TimeSerial(0, 0, 1)
+    nextTick = Now + TimeSerial(0, 0, 30)
     Application.OnTime nextTick, "TykZegara"
     tickArmed = True
 End Sub
@@ -358,7 +367,7 @@ End Sub
 Sub TykZegara()
     On Error Resume Next
     ThisWorkbook.Worksheets("PULPIT").Range("J2").Value = Now
-    nextTick = Now + TimeSerial(0, 0, 1)
+    nextTick = Now + TimeSerial(0, 0, 30)
     Application.OnTime nextTick, "TykZegara"
     tickArmed = True
 End Sub
