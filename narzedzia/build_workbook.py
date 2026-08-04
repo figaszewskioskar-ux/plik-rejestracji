@@ -209,7 +209,7 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
                                    align="right", valign="vcenter"))
     ws.merge_range(1, 9, 1, 10, "", f_clock)
     ws.write_formula(1, 9, "=NOW()", f_clock)
-    ws.insert_image("B3", logo, {"x_scale": 0.105, "y_scale": 0.105,
+    ws.insert_image("B3", logo, {"x_scale": 0.24, "y_scale": 0.24,
                                  "object_position": 3})
 
     kpis = [
