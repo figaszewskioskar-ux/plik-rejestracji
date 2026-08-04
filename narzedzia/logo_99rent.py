@@ -10,7 +10,7 @@ SS = 4  # supersampling
 
 def font(sz):
     return ImageFont.truetype(
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", sz)
+        "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf", sz)
 
 
 def nine(dr, cx, cy, R, tw, tail, color, grow=0):
@@ -47,10 +47,19 @@ def main(out="logo99rent.png", out_small="logo99rent_small.png"):
     nine(d, c2, cy, R, tw, tail, "white")
     hole(d, c2, cy, hr)
 
-    # RENT — bardzo gruby, szeroki napis
-    f = font(int(W * 0.20))
-    d.text((W / 2, int(W * 0.815)), "RENT", font=f, fill="white",
-           anchor="mm", stroke_width=int(W * 0.005), stroke_fill="white")
+    # RENT — bardzo gruby napis, litery rozstrzelone na szerokość dziewiątek
+    f = font(int(W * 0.21))
+    letters = "RENT"
+    widths = [d.textlength(ch, font=f) for ch in letters]
+    span = W * 0.66
+    gap_l = (span - sum(widths)) / (len(letters) - 1)
+    x = (W - span) / 2
+    y = int(W * 0.815)
+    sw = int(W * 0.006)
+    for ch, cw in zip(letters, widths):
+        d.text((x, y), ch, font=f, fill="white", anchor="lm",
+               stroke_width=sw, stroke_fill="white")
+        x += cw + gap_l
 
     img = img.resize((S, S), Image.LANCZOS)
     img.save(out)

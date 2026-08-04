@@ -144,14 +144,10 @@ Sub DodajZarejestrowany()
     ws.Cells(r, 9).Formula = "=IF(OR($G" & r & "=" & Chr(34) & Chr(34) & _
         ",$H" & r & "=" & Chr(34) & Chr(34) & ")," & Chr(34) & Chr(34) & _
         ",$H" & r & "-$G" & r & ")"
-    If IsNumeric(ws.Cells(ROW_FORM, 10).Value) And _
-       Trim(CStr(ws.Cells(ROW_FORM, 10).Value)) <> "" Then
-        ws.Cells(r, 10).Value = CDbl(ws.Cells(ROW_FORM, 10).Value)
-    End If
-    ws.Cells(r, 11).Value = ws.Cells(ROW_FORM, 11).Value        ' Uwagi
+    ws.Cells(r, 10).Value = ws.Cells(ROW_FORM, 10).Value        ' Uwagi
 
     ws.Range(ws.Cells(ROW_FORM, 1), ws.Cells(ROW_FORM, 8)).ClearContents
-    ws.Range(ws.Cells(ROW_FORM, 10), ws.Cells(ROW_FORM, 11)).ClearContents
+    ws.Cells(ROW_FORM, 10).ClearContents
     MsgBox "Pojazd " & vin & " dodany do katalogu zarejestrowanych.", _
         vbInformation, "99rent"
 End Sub
@@ -292,7 +288,7 @@ Sub ZarejestrujZaznaczone()
             wsZ.Cells(rz, 9).Formula = "=IF(OR($G" & rz & "=" & Chr(34) & Chr(34) & _
                 ",$H" & rz & "=" & Chr(34) & Chr(34) & ")," & Chr(34) & Chr(34) & _
                 ",$H" & rz & "-$G" & rz & ")"
-            wsZ.Cells(rz, 11).Value = wsW.Cells(rw, 9).Value     ' Uwagi
+            wsZ.Cells(rz, 10).Value = wsW.Cells(rw, 9).Value     ' Uwagi
             n = n + 1
         End If
         wsW.Rows(rw).Delete Shift:=xlUp
@@ -377,7 +373,7 @@ Sub ZarejestrujPojazd()
     wsZ.Cells(rz, 9).Formula = "=IF(OR($G" & rz & "=" & Chr(34) & Chr(34) & _
         ",$H" & rz & "=" & Chr(34) & Chr(34) & ")," & Chr(34) & Chr(34) & _
         ",$H" & rz & "-$G" & rz & ")"
-    wsZ.Cells(rz, 11).Value = wsW.Cells(rw, 9).Value            ' Uwagi
+    wsZ.Cells(rz, 10).Value = wsW.Cells(rw, 9).Value            ' Uwagi
 
     wsW.Rows(rw).Delete Shift:=xlUp
 

@@ -26,7 +26,9 @@ i logo 99rent.
    źródłowego Arkusz2 (połączone po VIN). Formularz + przycisk
    **DODAJ DO KATALOGU** dla pojazdów zarejestrowanych wcześniej.
    Kolumna *Czas rejestracji (dni)* = data rejestracji − data złożenia wniosku.
-4. **Nr rejestracyjny** — zakładka nadawania numeru: wybierasz VIN z listy,
+   Przycisk **ZAREJESTRUJ ZAZNACZONE** w W rejestracji przenosi wiele
+   pojazdów naraz. Daty wybiera się szybko z listy (31 dni wstecz).
+4. **Nr rejestracyjny** — zakładka nadawania numeru: wyszukiwarka VIN (fragment numeru), wybierasz VIN z listy,
    wpisujesz numer i datę, klikasz **ZAREJESTRUJ POJAZD** — pojazd przenosi
    się z *W rejestracji* do katalogu *Zarejestrowane* wraz z licznikiem dni.
    Panel podglądu pokazuje dane pojazdu dla wpisanego VIN.

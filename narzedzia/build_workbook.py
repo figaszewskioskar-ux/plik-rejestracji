@@ -139,6 +139,17 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
                     valign="top", text_wrap=True, bold=True, bg_color="white",
                     bottom=1, left=1, right=1, border_color="#D9D9D9")
     f_sec = fmt(bold=True, font_size=11, font_color=RED)
+    f_sec_band = fmt(bold=True, font_size=11, font_color="white",
+                     bg_color=RED, valign="vcenter", indent=1)
+    f_tbl_text = fmt(bg_color="white", border=1, border_color="#D9D9D9")
+    f_tbl_int = fmt(bg_color="white", border=1, border_color="#D9D9D9",
+                    num_format="0", align="center")
+    f_val_box = fmt(bg_color="white", border=1, border_color="#D9D9D9",
+                    bold=True, font_color=RED, align="center")
+    f_total_box = fmt(bold=True, border=1, border_color="#BFBFBF",
+                      bg_color="#F2F2F2", num_format="0", align="center")
+    f_total_lbl = fmt(bold=True, border=1, border_color="#BFBFBF",
+                      bg_color="#F2F2F2")
     f_lbl = fmt(bold=True)
     f_val = fmt(align="center", bold=True)
     f_stat_lbl = fmt()
@@ -328,9 +339,11 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
                         "source": "=Listy!$C$2:$C$%d" % (len(URZEDY_CANON) + 1),
                         "show_error": False})
     ws.data_validation(FORM_ROW - 1, 6, FORM_ROW - 1, 6,
-                       {"validate": "any", "show_input": True,
+                       {"validate": "list", "source": "=Listy!$E$2:$E$32",
+                        "show_error": False, "show_input": True,
                         "input_title": "Data złożenia",
-                        "input_message": "Format RRRR-MM-DD. Puste pole = dzisiejsza data."})
+                        "input_message": "Wybierz datę z listy (ostatnie 31 dni) "
+                                         "albo wpisz RRRR-MM-DD. Puste pole = dziś."})
 
     # ======================================================= IMPORT HURTOWY
     ws = wb.add_worksheet("Import hurtowy")
@@ -368,6 +381,9 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
         for c in range(8):
             ws.write_blank(rr, c, None,
                            f_import_date if c == 6 else f_import)
+    ws.data_validation(DATA_ROW - 1, 6, DATA_ROW - 1 + 299, 6,
+                       {"validate": "list", "source": "=Listy!$E$2:$E$32",
+                        "show_error": False})
     ws.freeze_panes(HDR_ROW, 0)
 
     # ========================================================= ZAREJESTROWANE
@@ -376,23 +392,23 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
     ws.set_tab_color("#2E7D32")
     zhdr = ["Marka", "Model", "VIN", "Nr rejestracyjny", "Dealer", "Urząd",
             "Data złożenia", "Data rejestracji", "Czas rejestracji (dni)",
-            "Cena zakupu netto", "Uwagi"]
-    zw = [13, 15, 21, 16, 15, 14, 13, 14, 14, 16, 26]
+            "Uwagi"]
+    zw = [13, 15, 21, 16, 15, 14, 13, 14, 14, 28]
     zfmts = [f_text, f_text, f_text, f_text, f_text, f_text, f_date, f_date,
-             f_int, f_money, f_text]
+             f_int, f_text]
     for c, (w, cf) in enumerate(zip(zw, zfmts)):
         ws.set_column(c, c, w, cf)
-    ws.set_column(11, 11, 2)
-    ws.set_column(12, 12, 24)
-    header_band(ws, "  KATALOG POJAZDÓW ZAREJESTROWANYCH", 11)
-    nav_button(ws, 12)
+    ws.set_column(10, 10, 2)
+    ws.set_column(11, 11, 24)
+    header_band(ws, "  KATALOG POJAZDÓW ZAREJESTROWANYCH", 10)
+    nav_button(ws, 11)
 
-    ws.merge_range(2, 0, 2, 10,
+    ws.merge_range(2, 0, 2, 9,
                    "FORMULARZ — POJAZD JUŻ ZAREJESTROWANY:  wypełnij żółte pola i kliknij DODAJ DO KATALOGU",
                    f_form_title)
     for c, h in enumerate(zhdr):
         ws.write(3, c, h, f_form_label)
-    for c in range(11):
+    for c in range(10):
         if c in (6, 7):
             ws.write_blank(FORM_ROW - 1, c, None, f_input_date)
         elif c == 8:
@@ -401,7 +417,7 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
             ws.write_blank(FORM_ROW - 1, c, None, f_input)
     ws.set_row(FORM_ROW - 1, 22)
     if with_vba:
-        ws.insert_button(3, 12, {"macro": "DodajZarejestrowany",
+        ws.insert_button(3, 11, {"macro": "DodajZarejestrowany",
                                  "caption": "DODAJ DO KATALOGU",
                                  "width": 165, "height": 40})
 
@@ -417,7 +433,7 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
     r = DATA_ROW - 1
     for marka, model, vin, nrrej, dealer, urzad, dzl, datarej, cena, uwagi in zarej:
         for c, v in ((0, marka), (1, model), (2, vin), (3, nrrej),
-                     (4, dealer), (5, urzad), (10, uwagi)):
+                     (4, dealer), (5, urzad), (9, uwagi)):
             if v:
                 ws.write_string(r, c, v, f_text)
         if dzl is not None:
@@ -427,16 +443,14 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
         ws.write_formula(
             r, 8, '=IF(OR($G%d="",$H%d=""),"",$H%d-$G%d)'
             % (r + 1, r + 1, r + 1, r + 1), f_int)
-        if cena is not None:
-            ws.write_number(r, 9, float(cena), f_money)
         r += 1
     zlast = r
 
-    ws.autofilter(HDR_ROW - 1, 0, LAST - 1, 10)
+    ws.autofilter(HDR_ROW - 1, 0, LAST - 1, 9)
     ws.freeze_panes(HDR_ROW, 0)
     ws.conditional_format(DATA_ROW - 1, 2, LAST - 1, 2,
                           {"type": "duplicate", "format": f_red})
-    ws.conditional_format(DATA_ROW - 1, 0, zlast - 1, 10,
+    ws.conditional_format(DATA_ROW - 1, 0, zlast - 1, 9,
                           {"type": "formula",
                            "criteria": "=MOD(ROW(),2)=0", "format": f_bandrow})
     ws.data_validation(FORM_ROW - 1, 0, FORM_ROW - 1, 0,
@@ -450,6 +464,13 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
                        {"validate": "list",
                         "source": "=Listy!$C$2:$C$%d" % (len(URZEDY_CANON) + 1),
                         "show_error": False})
+    for dc in (6, 7):   # daty: złożenia i rejestracji — szybki wybór z listy
+        ws.data_validation(FORM_ROW - 1, dc, FORM_ROW - 1, dc,
+                           {"validate": "list", "source": "=Listy!$E$2:$E$32",
+                            "show_error": False, "show_input": True,
+                            "input_title": "Data",
+                            "input_message": "Wybierz z listy (31 dni wstecz) "
+                                             "albo wpisz RRRR-MM-DD."})
 
     # ======================================================= NR REJESTRACYJNY
     ws = wb.add_worksheet("Nr rejestracyjny")
@@ -460,7 +481,9 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
     ws.set_column("B:B", 24)
     ws.set_column("C:C", 26)
     ws.set_column("D:D", 30)
-    ws.set_column("E:H", 14)
+    ws.set_column("E:E", 4)
+    ws.set_column("F:F", 26)
+    ws.set_column("G:H", 14)
     header_band(ws, "  NADAWANIE NUMERU REJESTRACYJNEGO", 8)
     nav_button(ws, 6)
 
@@ -478,6 +501,27 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
                        {"validate": "list",
                         "source": "='W rejestracji'!$C$%d:$C$%d" % (DATA_ROW, LAST),
                         "show_error": False})
+    ws.data_validation(6, 2, 6, 2,
+                       {"validate": "list", "source": "=Listy!$E$2:$E$32",
+                        "show_error": False, "show_input": True,
+                        "input_title": "Data rejestracji",
+                        "input_message": "Wybierz z listy (31 dni wstecz) "
+                                         "albo wpisz RRRR-MM-DD."})
+
+    # --- wyszukiwarka VIN (fragment numeru) --------------------------------
+    nrows = LAST - DATA_ROW + 1
+    ws.write(3, 5, "WYSZUKAJ VIN — wpisz fragment numeru:", f_form_title)
+    ws.write_blank(4, 5, None, f_input)
+    ws.write(5, 5, "wyniki (W rejestracji, potem katalog):", f_note)
+    for k in range(1, 6):
+        for cc, listcol, cntcol in ((0, "F", "H"), (1, "G", "I")):
+            ws.write_formula(
+                5 + k, 5 + cc,
+                '=IF($F$5="","",IFERROR(INDEX(Listy!$%(c)s$2:$%(c)s$%(n)d,'
+                'MATCH(%(k)d,Listy!$%(h)s$2:$%(h)s$%(n)d,0)),""))'
+                % {"c": listcol, "h": cntcol, "n": nrows + 1, "k": k},
+                f_text)
+    ws.write(5, 6, "(katalog)", f_note)
     if with_vba:
         ws.insert_button(8, 2, {"macro": "ZarejestrujPojazd",
                                 "caption": "ZAREJESTRUJ POJAZD",
@@ -517,6 +561,13 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
         '=IF($C$5="","",IFERROR(TODAY()-INDEX(\'W rejestracji\'!$G$%d:$G$%d,'
         'MATCH($C$5,\'W rejestracji\'!$C$%d:$C$%d,0)),""))'
         % (DATA_ROW, LAST, DATA_ROW, LAST), f_int)
+    rr += 1
+    ws.write(rr, 1, "Nr rejestracyjny (obecny)", f_lbl)
+    ws.write_formula(
+        rr, 2,
+        '=IF($C$5="","",IFERROR(INDEX(Zarejestrowane!$D$%d:$D$%d,'
+        'MATCH($C$5,Zarejestrowane!$C$%d:$C$%d,0)),"—"))'
+        % (DATA_ROW, LAST, DATA_ROW, LAST), f_text)
     rr += 2
     ws.merge_range(rr, 1, rr + 4, 3,
                    "Po kliknięciu ZAREJESTRUJ POJAZD pojazd zostaje przeniesiony "
@@ -544,8 +595,10 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
     ws.set_column("N:O", 13)
     header_band(ws, "  PODSUMOWANIE REJESTRACJI", 15)
     nav_button(ws, 14)
+    ws.hide_gridlines(2)
 
-    ws.write(2, 1, "STATYSTYKI", f_sec)
+    ws.merge_range(2, 1, 2, 2, "  STATYSTYKI", f_sec_band)
+    ws.set_row(2, 22)
     stats = [
         ("Pojazdy w rejestracji (oczekujące)",
          "=SUMPRODUCT(--(('W rejestracji'!$A$%d:$A$%d&'W rejestracji'!$C$%d:$C$%d)<>\"\"))"
@@ -570,44 +623,46 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
          % (DATA_ROW, LAST, DATA_ROW, LAST)),
     ]
     for i, (label, formula) in enumerate(stats):
-        ws.write(3 + i, 1, label, f_stat_lbl)
-        ws.write_formula(3 + i, 2, formula, f_val)
+        ws.write(3 + i, 1, label, f_tbl_text)
+        ws.write_formula(3 + i, 2, formula, f_val_box)
     stat_wrej_cell = "$C$4"
     stat_zar_cell = "$C$5"
 
     def breakdown(col0, title, items, wcol, zcol):
         """Emit name/count/count table at 0-indexed col0."""
-        ws.write(2, col0, title, f_sec)
+        ws.merge_range(2, col0, 2, col0 + 2, "  " + title, f_sec_band)
         ws.write(3, col0, "Nazwa", f_hdr)
         ws.write(3, col0 + 1, "W rejestracji", f_hdr)
         ws.write(3, col0 + 2, "Zarejestrowane", f_hdr)
         rr = 4
         for it in items:
-            ws.write(rr, col0, it, f_text)
+            ws.write(rr, col0, it, f_tbl_text)
             ws.write_formula(
                 rr, col0 + 1,
                 "=COUNTIF('W rejestracji'!$%s$%d:$%s$%d,%s%d)"
                 % (wcol, DATA_ROW, wcol, LAST,
-                   xl_col_to_name(col0), rr + 1), f_int)
+                   xl_col_to_name(col0), rr + 1), f_tbl_int)
             ws.write_formula(
                 rr, col0 + 2,
                 "=COUNTIF(Zarejestrowane!$%s$%d:$%s$%d,%s%d)"
                 % (zcol, DATA_ROW, zcol, LAST,
-                   xl_col_to_name(col0), rr + 1), f_int)
+                   xl_col_to_name(col0), rr + 1), f_tbl_int)
             rr += 1
-        ws.write(rr, col0, "inne / brak", f_text)
+        ws.write(rr, col0, "inne / brak", f_tbl_text)
         c1 = xl_col_to_name(col0 + 1)
         c2 = xl_col_to_name(col0 + 2)
         ws.write_formula(rr, col0 + 1,
-                         "=%s-SUM(%s5:%s%d)" % (stat_wrej_cell, c1, c1, rr), f_int)
+                         "=%s-SUM(%s5:%s%d)" % (stat_wrej_cell, c1, c1, rr),
+                         f_tbl_int)
         ws.write_formula(rr, col0 + 2,
-                         "=%s-SUM(%s5:%s%d)" % (stat_zar_cell, c2, c2, rr), f_int)
+                         "=%s-SUM(%s5:%s%d)" % (stat_zar_cell, c2, c2, rr),
+                         f_tbl_int)
         rr += 1
-        ws.write(rr, col0, "RAZEM", f_total)
+        ws.write(rr, col0, "RAZEM", f_total_lbl)
         ws.write_formula(rr, col0 + 1,
-                         "=SUM(%s5:%s%d)" % (c1, c1, rr), f_total)
+                         "=SUM(%s5:%s%d)" % (c1, c1, rr), f_total_box)
         ws.write_formula(rr, col0 + 2,
-                         "=SUM(%s5:%s%d)" % (c2, c2, rr), f_total)
+                         "=SUM(%s5:%s%d)" % (c2, c2, rr), f_total_box)
 
     breakdown(4, "WG URZĘDU", URZEDY_CANON, "F", "F")
     breakdown(8, "WG MARKI", marki, "A", "A")
@@ -640,6 +695,33 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
         for i, v in enumerate(vals):
             ws.write_string(1 + i, c, v, f_text)
         ws.set_column(c, c, 22)
+    # E: podręczny "kalendarz" — ostatnie 31 dni do szybkiego wyboru daty
+    ws.write(0, 4, "Daty (31 dni)", f_hdr)
+    for i in range(31):
+        ws.write_formula(1 + i, 4, "=TODAY()-%d" % i, f_date)
+    ws.set_column(4, 4, 14)
+    # F/G: lustrzane listy VIN z obu arkuszy (do wyszukiwarki VIN)
+    ws.write(0, 5, "VIN w rejestracji", f_hdr)
+    ws.write(0, 6, "VIN zarejestrowane", f_hdr)
+    # H/I: liczniki dopasowań do wyszukiwarki VIN (fragment w 'Nr rejestracyjny'!F5)
+    ws.write(0, 7, "trafienia W rej", f_hdr)
+    ws.write(0, 8, "trafienia katalog", f_hdr)
+    for i in range(DATA_ROW, LAST + 1):
+        rr = i - DATA_ROW + 2  # 1-indexed sheet row
+        ws.write_formula(rr - 1, 5,
+                         "=IF('W rejestracji'!$C$%d=\"\",\"\",'W rejestracji'!$C$%d)"
+                         % (i, i), f_text)
+        ws.write_formula(rr - 1, 6,
+                         "=IF(Zarejestrowane!$C$%d=\"\",\"\",Zarejestrowane!$C$%d)"
+                         % (i, i), f_text)
+        for src, dst in (("F", "H"), ("G", "I")):
+            ws.write_formula(
+                rr - 1, ord(dst) - ord("A"),
+                '=IF(AND($%(s)s%(r)d<>"",ISNUMBER(SEARCH('
+                "'Nr rejestracyjny'!$F$5,$%(s)s%(r)d))),"
+                "COUNT($%(d)s$1:%(d)s%(p)d)+1,\"\")"
+                % {"s": src, "d": dst, "r": rr, "p": rr - 1}, f_int)
+    ws.set_column(5, 8, 22)
     ws.hide()
 
     if with_vba:
