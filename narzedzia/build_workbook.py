@@ -178,7 +178,7 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
     ws.set_column("B:C", 14)
     ws.set_column("D:K", 12)
     header_band(ws, "  RAPORT REJESTRACJI POJAZDÓW", 11)
-    ws.insert_image("B3", logo, {"x_scale": 0.42, "y_scale": 0.42,
+    ws.insert_image("B3", logo, {"x_scale": 0.21, "y_scale": 0.21,
                                  "object_position": 3})
 
     kpis = [
