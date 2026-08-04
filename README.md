@@ -14,7 +14,7 @@ i logo 99rent.
 ## Arkusze
 
 1. **PULPIT** — logo 99rent, wskaźniki (KPI), przyciski nawigacji i instrukcja.
-2. **W rejestracji** — pojazdy oczekujące (952 szt. z pliku źródłowego).
+2. **W rejestracji** — pojazdy oczekujące (934 szt. z pliku źródłowego).
    Formularz w wierszu 5 + przycisk **DODAJ WNIOSEK**. Kolumna
    *Dni od złożenia* liczy się automatycznie (`=DZIŚ()-data złożenia`)
    i podświetla zaległości (pomarańczowy > 10 dni, czerwony > 21 dni).
@@ -52,6 +52,7 @@ makra (plik pobrany z internetu): zamknij plik → kliknij prawym przyciskiem �
 pip install openpyxl xlsxwriter ms-ovba-compression oletools pillow
 cd narzedzia
 python logo_99rent.py
-python make_vba_project.py    # generuje vbaProject.bin z makr VBA
+python make_vba_project.py            # generuje vbaProject.bin z makr VBA
+cp ../Raport_rejestracji.xlsx .       # dane źródłowe
 python build_workbook.py ../Raport_rejestracji_99rent.xlsm
 ```
