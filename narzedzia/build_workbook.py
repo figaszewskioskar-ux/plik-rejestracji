@@ -250,7 +250,17 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
         "Żółte pola = pola do wypełnienia.  Duplikaty VIN są blokowane przez przyciski i podświetlane na czerwono w tabelach."
     )
     ws.merge_range(9, 1, 17, 10, instr, f_instr)
-    ws.write(19, 1, "Wygenerowano na podstawie pliku Raport_rejestracji.xlsx", f_note)
+    f_leg_y = fmt(bg_color="#FFF9C4", border=1, border_color="#9E9E9E",
+                  align="center", font_size=9)
+    f_leg_g = fmt(bg_color="#C6EFCE", border=1, border_color="#9E9E9E",
+                  align="center", font_size=9)
+    f_leg_r = fmt(bg_color="#FFC7CE", border=1, border_color="#9E9E9E",
+                  align="center", font_size=9)
+    ws.write(19, 1, "LEGENDA KOLORÓW:", f_lbl)
+    ws.merge_range(19, 3, 19, 4, "w rejestracji (złożone)", f_leg_y)
+    ws.merge_range(19, 5, 19, 6, "zarejestrowany", f_leg_g)
+    ws.merge_range(19, 7, 19, 8, "wymaga uwagi / zaległy", f_leg_r)
+    ws.write(21, 1, "Wygenerowano na podstawie pliku Raport_rejestracji.xlsx", f_note)
 
     # ========================================================= W REJESTRACJI
     ws = wb.add_worksheet("W rejestracji")
@@ -564,6 +574,11 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
     ws.write_formula(17, 2, sump("'W rejestracji'", "A", "D", "F", "G"), f_val_box)
     ws.write(18, 1, "Zarejestrowane (wg daty rejestracji)", f_tbl_text)
     ws.write_formula(18, 2, sump("Zarejestrowane", "A", "E", "F", "H"), f_val_box)
+    ws.merge_range(15, 3, 18, 5,
+                   "Wybierz wartości z list (żółte pola) — liczniki obok "
+                   "przeliczają się od razu. „(wszystkie)” wyłącza dany filtr. "
+                   "Miesiąc: dla rejestru liczy się data złożenia, dla katalogu "
+                   "data rejestracji.", f_note)
 
     # --- zestawienie miesięczne: 05.2026 – 12.2026 -------------------------
     ws.merge_range(20, 1, 20, 3, "  WG MIESIĄCA (05–12.2026)", f_sec_band)
