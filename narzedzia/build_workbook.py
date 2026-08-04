@@ -112,7 +112,7 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
         return wb.add_format(d)
 
     f_band = fmt(bg_color=RED, font_color="white", bold=True, font_size=16,
-                 align="left", valign="vcenter", indent=1)
+                 align="left", valign="vcenter", indent=7)
     f_band_sub = fmt(bg_color=RED, font_color="white", font_size=10,
                      align="right", valign="vcenter")
     f_hdr = fmt(bold=True, font_color="white", bg_color=DARK, border=1,

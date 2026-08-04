@@ -10,6 +10,13 @@ Attribute VB_Exposed = True
 Attribute VB_TemplateDerived = False
 Attribute VB_Customizable = True
 Option Explicit
+
+Private Sub Workbook_Open()
+    ' Wymus automatyczne przeliczanie i pelna kalkulacje przy otwarciu
+    ' (gdy sesja Excela byla w trybie recznym, formuly pokazywaly 0 / 1900-01).
+    Application.Calculation = xlCalculationAutomatic
+    Application.CalculateFullRebuild
+End Sub
 '''
 
 MODULE1 = r'''Attribute VB_Name = "Module1"
