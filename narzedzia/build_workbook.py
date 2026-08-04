@@ -73,6 +73,33 @@ def load_data():
             zarej.append((None, None, vin, nrrej, None, None, None,
                           datarej, cena, None))
 
+    # deduplikacja wariantów pisowni (Euro-Kas / euro kas, SRÓDMIEŚCIE /
+    # ŚRÓDMIEŚCIE itp.) — wszystkie wiersze dostają ujednoliconą nazwę
+    m_marka = canonical_map([r[0] for r in wrej] + [z[0] for z in zarej])
+    m_dealer = canonical_map([r[3] for r in wrej] + [z[4] for z in zarej])
+    for var in list(m_dealer):
+        alias = DEALER_ALIASES.get(_norm_key(m_dealer[var]))
+        if alias:
+            m_dealer[var] = alias
+    m_wsp = canonical_map([r[4] for r in wrej])
+    m_urzad = {u: u for u in URZEDY_CANON}
+    m_urzad.update({v: canonical_map(
+        URZEDY_CANON + [r[5] for r in wrej] + [z[5] for z in zarej]).get(v, v)
+        for v in set([r[5] for r in wrej] + [z[5] for z in zarej]) if v})
+    # urzędy mapuj na kanoniczną listę (typo SRÓDMIEŚCIE -> ŚRÓDMIEŚCIE)
+    urz_canon_by_key = {_norm_key(u): u for u in URZEDY_CANON}
+    def fix_urzad(v):
+        if not v:
+            return v
+        return urz_canon_by_key.get(_norm_key(v), v)
+
+    wrej = [(m_marka.get(r[0], r[0]), r[1], r[2], m_dealer.get(r[3], r[3]),
+             m_wsp.get(r[4], r[4]), fix_urzad(r[5]), r[6], r[7], r[8])
+            for r in wrej]
+    zarej = [(m_marka.get(z[0], z[0]), z[1], z[2], z[3],
+              m_dealer.get(z[4], z[4]), fix_urzad(z[5]), z[6], z[7], z[8], z[9])
+             for z in zarej]
+
     pilne = []
     for r in wb["Arkusz4"].iter_rows(min_row=4, max_col=2, values_only=True):
         if r[0] or r[1]:
@@ -80,17 +107,47 @@ def load_data():
     return wrej, zarej, pilne
 
 
-def canonical(values):
-    """Group case-insensitively, return most common spelling of each, sorted."""
+import unicodedata
+
+
+def _norm_key(v):
+    """Klucz porównywania nazw: bez wielkości liter, ogonków i interpunkcji,
+    żeby 'Euro-Kas', 'euro kas' i 'EURO KAS' trafiały do jednej grupy."""
+    v = unicodedata.normalize("NFKD", v)
+    v = "".join(ch for ch in v if not unicodedata.combining(ch))
+    return "".join(ch for ch in v.casefold() if ch.isalnum())
+
+
+def canonical_map(values):
+    """Mapa: oryginalna pisownia -> najczęstsza pisownia w grupie."""
     groups = collections.defaultdict(collections.Counter)
     for v in values:
         if v:
-            groups[v.casefold()][v] += 1
-    return sorted((c.most_common(1)[0][0] for c in groups.values()),
-                  key=lambda x: x.casefold())
+            groups[_norm_key(v)][v] += 1
+    out = {}
+    for cnt in groups.values():
+        best = cnt.most_common(1)[0][0]
+        for variant in cnt:
+            out[variant] = best
+    return out
+
+
+def canonical(values):
+    """Ujednolicone, posortowane nazwy (po deduplikacji wariantów)."""
+    m = canonical_map(values)
+    return sorted(set(m.values()), key=lambda x: x.casefold())
 
 
 URZEDY_CANON = ["BEMOWO", "BIAŁOŁĘKA", "OCHOTA", "ŚRÓDMIEŚCIE", "WAWER", "WILANÓW"]
+
+# ręczne scalenia wariantów, których nie łapie normalizacja (literówki itp.)
+DEALER_ALIASES = {
+    "inchape": "Inchcape",
+    "nord": "NORD AUTO",
+    "mbmotors": "MB Motors Poznań",
+    "saga": "Inter Saga",
+    "vw": "VW GROUP",
+}
 
 
 def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
@@ -612,7 +669,8 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
                    "Wybierz wartości z list (żółte pola) — liczniki obok "
                    "przeliczają się od razu. „(wszystkie)” wyłącza dany filtr. "
                    "Miesiąc: dla rejestru liczy się data złożenia, dla katalogu "
-                   "data rejestracji.", f_note)
+                   "data rejestracji. Miesiące przeniesione do zakładek "
+                   "Archiwum liczy tabela WG MIESIĄCA poniżej.", f_note)
 
     # --- zestawienie miesięczne: 05.2026 – 12.2026 -------------------------
     ws.merge_range(20, 1, 20, 3, "  WG MIESIĄCA (05–12.2026)", f_sec_band)
@@ -633,11 +691,15 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
             "+COUNTIFS(Zarejestrowane!$G$%(d)d:$G$%(l)d,\">=\"&%(m)s,"
             "Zarejestrowane!$G$%(d)d:$G$%(l)d,\"<\"&EDATE(%(m)s,1))"
             % {"d": DATA_ROW, "l": LAST, "m": mcell}, f_tbl_int)
+        klucz_m = "2026-%02d" % (5 + k)
+        arch_add = ""
+        if klucz_m in stare_by_month:
+            arch_add = ("+COUNT('Archiwum %s'!$H$2:$H$5000)" % klucz_m)
         ws.write_formula(
             rr, 3,
-            "=COUNTIFS(Zarejestrowane!$H$%(d)d:$H$%(l)d,\">=\"&%(m)s,"
-            "Zarejestrowane!$H$%(d)d:$H$%(l)d,\"<\"&EDATE(%(m)s,1))"
-            % {"d": DATA_ROW, "l": LAST, "m": mcell}, f_tbl_int)
+            ("=COUNTIFS(Zarejestrowane!$H$%(d)d:$H$%(l)d,\">=\"&%(m)s,"
+             "Zarejestrowane!$H$%(d)d:$H$%(l)d,\"<\"&EDATE(%(m)s,1))"
+             % {"d": DATA_ROW, "l": LAST, "m": mcell}) + arch_add, f_tbl_int)
     ws.set_column("D:D", 14)
 
     def breakdown(col0, title, items, wcol, zcol):
