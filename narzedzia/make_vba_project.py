@@ -3,7 +3,7 @@
 from make_vba_bin import make_vba_project
 from vba_source import THISWORKBOOK, MODULE1, SHEET_MODULE_TEMPLATE
 
-N_SHEETS = 8  # PULPIT, W rejestracji, Import hurtowy, Zarejestrowane, Nr rejestracyjny,
+N_SHEETS = 7  # PULPIT, W rejestracji, Import hurtowy, Zarejestrowane,
               # PODSUMOWANIE, Pilne, Listy
 
 def main(out="vbaProject.bin"):
@@ -31,7 +31,7 @@ def main(out="vbaProject.bin"):
     for (_, _, vba_fn, code) in p.extract_macros():
         found[vba_fn] = code
     p.close()
-    for sub in ("DodajWniosek", "DodajZarejestrowany", "ZarejestrujPojazd",
+    for sub in ("DodajWniosek", "DodajZarejestrowany", "DodajHurtowo",
                 "IdzPulpit"):
         assert "Sub " + sub in found["Module1.bas"], sub
     print("vbaProject.bin OK —", len(data), "bajtów,", len(found), "modułów")

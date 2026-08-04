@@ -28,7 +28,7 @@ i logo 99rent.
    Kolumna *Czas rejestracji (dni)* = data rejestracji − data złożenia wniosku.
    Przycisk **ZAREJESTRUJ ZAZNACZONE** w W rejestracji przenosi wiele
    pojazdów naraz. Daty wybiera się szybko z listy (31 dni wstecz).
-4. **Nr rejestracyjny** — zakładka nadawania numeru: wyszukiwarka VIN (fragment numeru), wybierasz VIN z listy,
+4. **PODSUMOWANIE** — statystyki, zestawienie wg miesięcy oraz
    wpisujesz numer i datę, klikasz **ZAREJESTRUJ POJAZD** — pojazd przenosi
    się z *W rejestracji* do katalogu *Zarejestrowane* wraz z licznikiem dni.
    Panel podglądu pokazuje dane pojazdu dla wpisanego VIN.

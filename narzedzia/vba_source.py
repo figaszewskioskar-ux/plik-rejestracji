@@ -21,7 +21,6 @@ Option Explicit
 '  Uklad arkuszy:
 '    "W rejestracji"   - formularz w wierszu 5, tabela od wiersza 8
 '    "Zarejestrowane"  - formularz w wierszu 5, tabela od wiersza 8
-'    "Nr rejestracyjny" - VIN w C5, nr rej w C6, data rejestracji w C7
 ' =====================================================================
 
 Private Const ROW_FORM As Long = 5      ' wiersz formularza
@@ -262,7 +261,7 @@ Sub ZarejestrujZaznaczone()
 
     If MsgBox("Przeniesc " & rowsToMove.Count & " pojazd(y) do katalogu " & _
         "ZAREJESTROWANE z dzisiejsza data rejestracji?" & vbCrLf & _
-        "Numery rejestracyjne nadasz w zakladce Nr rejestracyjny.", _
+        "Numer rejestracyjny wpiszesz w kolumnie D katalogu.", _
         vbYesNo + vbQuestion, "99rent") <> vbYes Then Exit Sub
 
     ' posortuj wiersze malejaco, zeby usuwanie nie przesuwalo numeracji
@@ -311,99 +310,10 @@ Sub ZarejestrujZaznaczone()
     Application.ScreenUpdating = True
 
     MsgBox "Przeniesiono do katalogu: " & n & " pojazd(y)." & vbCrLf & _
-        "Numery rejestracyjne nadasz w zakladce Nr rejestracyjny.", _
+        "Numer rejestracyjny wpisz w kolumnie D katalogu.", _
         vbInformation, "99rent"
 End Sub
 
-' ---------------------------------------------------------------------
-' Przycisk: ZAREJESTRUJ POJAZD (arkusz "Nr rejestracyjny")
-' Nadaje numer rejestracyjny pojazdowi oczekujacemu: przenosi go
-' z "W rejestracji" do katalogu "Zarejestrowane" i liczy dni.
-' ---------------------------------------------------------------------
-Sub ZarejestrujPojazd()
-    Dim wsN As Worksheet, wsW As Worksheet, wsZ As Worksheet
-    Dim vin As String, nrRej As String
-    Dim dataRej As Date, dataZl As Variant
-    Dim rw As Long, rz As Long, dni As String
-
-    Set wsN = ThisWorkbook.Worksheets("Nr rejestracyjny")
-    Set wsW = ThisWorkbook.Worksheets("W rejestracji")
-    Set wsZ = ThisWorkbook.Worksheets("Zarejestrowane")
-
-    vin = Trim(CStr(wsN.Range("C5").Value))
-    nrRej = Trim(CStr(wsN.Range("C6").Value))
-    If vin = "" Then
-        MsgBox "Podaj numer VIN pojazdu.", vbExclamation, "99rent"
-        Exit Sub
-    End If
-    If nrRej = "" Then
-        MsgBox "Podaj numer rejestracyjny.", vbExclamation, "99rent"
-        Exit Sub
-    End If
-    dataRej = SafeDate(wsN.Range("C7").Value, Date)
-
-    ' Pojazd juz w katalogu (np. przeniesiony hurtowo) -> tylko nadaj numer
-    rz = FindVinRow(wsZ, vin)
-    If rz > 0 Then
-        If Trim(CStr(wsZ.Cells(rz, 4).Value)) <> "" Then
-            MsgBox "Pojazd " & vin & " ma juz numer " & _
-                wsZ.Cells(rz, 4).Value & ".", vbExclamation, "99rent"
-            Exit Sub
-        End If
-        wsZ.Cells(rz, 4).Value = nrRej
-        If Not IsDate(wsZ.Cells(rz, 8).Value) Then
-            wsZ.Cells(rz, 8).Value = dataRej
-            wsZ.Cells(rz, 8).NumberFormat = "yyyy-mm-dd"
-        End If
-        wsN.Range("C5:C7").ClearContents
-        MsgBox "Nadano numer " & nrRej & " pojazdowi " & vin & _
-            " (byl juz w katalogu).", vbInformation, "99rent"
-        Exit Sub
-    End If
-
-    rw = FindVinRow(wsW, vin)
-    If rw = 0 Then
-        MsgBox "Nie znaleziono VIN " & vin & " ani w arkuszu W rejestracji, " _
-            & "ani w katalogu Zarejestrowane." & vbCrLf & "Uzyj formularza " _
-            & "w arkuszu Zarejestrowane, jesli pojazd nie przechodzil " _
-            & "przez rejestr.", vbExclamation, "99rent"
-        Exit Sub
-    End If
-
-    dataZl = wsW.Cells(rw, 7).Value
-
-    rz = LastRow(wsZ) + 1
-    wsZ.Cells(rz, 1).Value = wsW.Cells(rw, 1).Value             ' Marka
-    wsZ.Cells(rz, 2).Value = wsW.Cells(rw, 2).Value             ' Model
-    wsZ.Cells(rz, 3).Value = vin                                 ' VIN
-    wsZ.Cells(rz, 4).Value = nrRej                               ' Nr rej
-    wsZ.Cells(rz, 5).Value = wsW.Cells(rw, 4).Value             ' Dealer
-    wsZ.Cells(rz, 6).Value = wsW.Cells(rw, 6).Value             ' Urzad
-    If IsDate(dataZl) Then
-        wsZ.Cells(rz, 7).Value = CDate(dataZl)
-        wsZ.Cells(rz, 7).NumberFormat = "yyyy-mm-dd"
-    End If
-    wsZ.Cells(rz, 8).Value = dataRej
-    wsZ.Cells(rz, 8).NumberFormat = "yyyy-mm-dd"
-    wsZ.Cells(rz, 9).Formula = "=IF(OR($G" & rz & "=" & Chr(34) & Chr(34) & _
-        ",$H" & rz & "=" & Chr(34) & Chr(34) & ")," & Chr(34) & Chr(34) & _
-        ",$H" & rz & "-$G" & rz & ")"
-    wsZ.Cells(rz, 10).Value = wsW.Cells(rw, 9).Value            ' Uwagi
-    PaintGreen wsZ, rz
-
-    wsW.Rows(rw).Delete Shift:=xlUp
-
-    If IsDate(dataZl) Then
-        dni = CStr(CLng(dataRej - CDate(dataZl)))
-        MsgBox "Pojazd " & vin & " zarejestrowany jako " & nrRej & "." & _
-            vbCrLf & "Czas rejestracji: " & dni & " dni.", vbInformation, "99rent"
-    Else
-        MsgBox "Pojazd " & vin & " zarejestrowany jako " & nrRej & ".", _
-            vbInformation, "99rent"
-    End If
-
-    wsN.Range("C5:C7").ClearContents
-End Sub
 
 ' --------------------------- nawigacja (przyciski na pulpicie) --------
 Sub IdzWRejestracji()
@@ -412,10 +322,6 @@ End Sub
 
 Sub IdzZarejestrowane()
     Application.Goto ThisWorkbook.Worksheets("Zarejestrowane").Range("A1"), True
-End Sub
-
-Sub IdzNrRej()
-    Application.Goto ThisWorkbook.Worksheets("Nr rejestracyjny").Range("A1"), True
 End Sub
 
 Sub IdzPodsumowanie()

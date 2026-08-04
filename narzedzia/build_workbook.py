@@ -227,7 +227,6 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
     if with_vba:
         navs = [("W REJESTRACJI", "IdzWRejestracji"),
                 ("IMPORT HURTOWY", "IdzImport"),
-                ("NADAJ NR REJ.", "IdzNrRej"),
                 ("KATALOG ZAREJESTR.", "IdzZarejestrowane"),
                 ("PODSUMOWANIE", "IdzPodsumowanie")]
         col = 1
@@ -245,7 +244,7 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
         "Kolumna „Dni od złożenia” liczy się sama i podświetla pojazdy czekające zbyt długo (pomarańczowy > 10 dni, czerwony > 21 dni).\n"
         "3.  IMPORT HURTOWY — wklejasz 10, 20, 30… pojazdów naraz (z VIN-ami) i jednym kliknięciem dodajesz wszystkie do rejestru.\n"
         "4.  Po odebraniu rejestracji: zaznacz pojazdy w W REJESTRACJI i kliknij ZAREJESTRUJ ZAZNACZONE — przechodzą do katalogu "
-        "ZAREJESTROWANE z licznikiem dni. Numer rejestracyjny nadasz potem w zakładce NR REJESTRACYJNY (działa też dla pojazdów już w katalogu).\n"
+        "ZAREJESTROWANE z licznikiem dni. Numer rejestracyjny wpisujesz wprost w kolumnie „Nr rejestracyjny” katalogu.\n"
         "5.  ZAREJESTROWANE — pojazd zarejestrowany wcześniej (poza rejestrem) dodasz bezpośrednio przyciskiem DODAJ DO KATALOGU.\n"
         "6.  PODSUMOWANIE — statystyki wg urzędu, dealera i marki oraz czasy rejestracji liczą się automatycznie.\n"
         "Żółte pola = pola do wypełnienia.  Duplikaty VIN są blokowane przez przyciski i podświetlane na czerwono w tabelach."
@@ -289,7 +288,7 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
                                  "caption": "ZAREJESTRUJ ZAZNACZONE ▶",
                                  "width": 170, "height": 34})
         ws.write(9, 10, "Zaznacz wiersze pojazdów i kliknij, aby przenieść "
-                 "je do katalogu ZAREJESTROWANE (nr rej. nadasz później).",
+                 "je do katalogu ZAREJESTROWANE (nr rej. wpiszesz tam w kolumnie D).",
                  f_note)
 
     for c, h in enumerate(headers):
@@ -481,111 +480,6 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
                             "input_message": "Wybierz z listy (31 dni wstecz) "
                                              "albo wpisz RRRR-MM-DD."})
 
-    # ======================================================= NR REJESTRACYJNY
-    ws = wb.add_worksheet("Nr rejestracyjny")
-    sheet_order.append(ws)
-    ws.set_tab_color("#1565C0")
-    ws.hide_gridlines(2)
-    ws.set_column("A:A", 3)
-    ws.set_column("B:B", 24)
-    ws.set_column("C:C", 26)
-    ws.set_column("D:D", 30)
-    ws.set_column("E:E", 4)
-    ws.set_column("F:F", 26)
-    ws.set_column("G:H", 14)
-    header_band(ws, "  NADAWANIE NUMERU REJESTRACYJNEGO", 8)
-    nav_button(ws, 6)
-
-    ws.write(3, 1, "Wypełnij pola i kliknij ZAREJESTRUJ POJAZD:", f_form_title)
-    ws.write(4, 1, "VIN pojazdu", f_lbl)
-    ws.write_blank(4, 2, None, f_input)
-    ws.write(5, 1, "Numer rejestracyjny", f_lbl)
-    ws.write_blank(5, 2, None, f_input)
-    ws.write(6, 1, "Data rejestracji", f_lbl)
-    ws.write_blank(6, 2, None, f_input_date)
-    ws.write(6, 3, "(puste pole = dzisiejsza data)", f_note)
-    for rr in (4, 5, 6):
-        ws.set_row(rr, 22)
-    ws.data_validation(4, 2, 4, 2,
-                       {"validate": "list",
-                        "source": "='W rejestracji'!$C$%d:$C$%d" % (DATA_ROW, LAST),
-                        "show_error": False})
-    ws.data_validation(6, 2, 6, 2,
-                       {"validate": "list", "source": "=Listy!$E$2:$E$32",
-                        "show_error": False, "show_input": True,
-                        "input_title": "Data rejestracji",
-                        "input_message": "Wybierz z listy (31 dni wstecz) "
-                                         "albo wpisz RRRR-MM-DD."})
-
-    # --- wyszukiwarka VIN (fragment numeru) --------------------------------
-    nrows = LAST - DATA_ROW + 1
-    ws.write(3, 5, "WYSZUKAJ VIN — wpisz fragment numeru:", f_form_title)
-    ws.write_blank(4, 5, None, f_input)
-    ws.write(5, 5, "wyniki (W rejestracji, potem katalog):", f_note)
-    for k in range(1, 6):
-        for cc, listcol, cntcol in ((0, "F", "H"), (1, "G", "I")):
-            ws.write_formula(
-                5 + k, 5 + cc,
-                '=IF($F$5="","",IFERROR(INDEX(Listy!$%(c)s$2:$%(c)s$%(n)d,'
-                'MATCH(%(k)d,Listy!$%(h)s$2:$%(h)s$%(n)d,0)),""))'
-                % {"c": listcol, "h": cntcol, "n": nrows + 1, "k": k},
-                f_text)
-    ws.write(5, 6, "(katalog)", f_note)
-    if with_vba:
-        ws.insert_button(8, 2, {"macro": "ZarejestrujPojazd",
-                                "caption": "ZAREJESTRUJ POJAZD",
-                                "width": 190, "height": 44})
-    ws.set_row(8, 40)
-
-    ws.write(11, 1, "PODGLĄD POJAZDU (dla wpisanego VIN)", f_sec)
-    prev = [
-        ("Marka", "$A", "$A"), ("Model", "$B", "$B"),
-        ("Dealer", "$D", "$E"), ("Urząd", "$F", "$F"),
-    ]
-    rr = 12
-    for label, colw, colz in prev:
-        ws.write(rr, 1, label, f_lbl)
-        ws.write_formula(
-            rr, 2,
-            '=IF($C$5="","",IFERROR(INDEX(\'W rejestracji\'!%s$%d:%s$%d,'
-            'MATCH($C$5,\'W rejestracji\'!$C$%d:$C$%d,0)),'
-            'IFERROR(INDEX(Zarejestrowane!%s$%d:%s$%d,'
-            'MATCH($C$5,Zarejestrowane!$C$%d:$C$%d,0)),"nie znaleziono")))'
-            % (colw, DATA_ROW, colw, LAST, DATA_ROW, LAST,
-               colz, DATA_ROW, colz, LAST, DATA_ROW, LAST), f_text)
-        rr += 1
-    ws.write(rr, 1, "Data złożenia wniosku", f_lbl)
-    ws.write_formula(
-        rr, 2,
-        '=IF($C$5="","",IFERROR(INDEX(\'W rejestracji\'!$G$%d:$G$%d,'
-        'MATCH($C$5,\'W rejestracji\'!$C$%d:$C$%d,0)),'
-        'IFERROR(INDEX(Zarejestrowane!$G$%d:$G$%d,'
-        'MATCH($C$5,Zarejestrowane!$C$%d:$C$%d,0)),"")))'
-        % (DATA_ROW, LAST, DATA_ROW, LAST, DATA_ROW, LAST, DATA_ROW, LAST),
-        f_date)
-    rr += 1
-    ws.write(rr, 1, "Dni od złożenia (dziś)", f_lbl)
-    ws.write_formula(
-        rr, 2,
-        '=IF($C$5="","",IFERROR(TODAY()-INDEX(\'W rejestracji\'!$G$%d:$G$%d,'
-        'MATCH($C$5,\'W rejestracji\'!$C$%d:$C$%d,0)),""))'
-        % (DATA_ROW, LAST, DATA_ROW, LAST), f_int)
-    rr += 1
-    ws.write(rr, 1, "Nr rejestracyjny (obecny)", f_lbl)
-    ws.write_formula(
-        rr, 2,
-        '=IF($C$5="","",IFERROR(INDEX(Zarejestrowane!$D$%d:$D$%d,'
-        'MATCH($C$5,Zarejestrowane!$C$%d:$C$%d,0)),"—"))'
-        % (DATA_ROW, LAST, DATA_ROW, LAST), f_text)
-    rr += 2
-    ws.merge_range(rr, 1, rr + 4, 3,
-                   "Po kliknięciu ZAREJESTRUJ POJAZD pojazd zostaje przeniesiony "
-                   "z arkusza W REJESTRACJI do katalogu ZAREJESTROWANE, a licznik "
-                   "dni od złożenia wniosku do rejestracji zapisuje się w kolumnie "
-                   "„Czas rejestracji (dni)”. Jeśli pojazd jest już w katalogu "
-                   "(np. przeniesiony przyciskiem ZAREJESTRUJ ZAZNACZONE), makro "
-                   "tylko nadaje mu wpisany numer rejestracyjny.", f_note)
-
     # ========================================================== PODSUMOWANIE
     ws = wb.add_worksheet("PODSUMOWANIE")
     sheet_order.append(ws)
@@ -636,6 +530,33 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
         ws.write_formula(3 + i, 2, formula, f_val_box)
     stat_wrej_cell = "$C$4"
     stat_zar_cell = "$C$5"
+
+    # --- zestawienie miesięczne (ostatnie 12 miesięcy) --------------------
+    ws.merge_range(12, 1, 12, 3, "  WG MIESIĄCA (ostatnie 12 mies.)", f_sec_band)
+    ws.set_row(12, 22)
+    ws.write(13, 1, "Miesiąc", f_hdr)
+    ws.write(13, 2, "Złożone wnioski", f_hdr)
+    ws.write(13, 3, "Zarejestrowane", f_hdr)
+    f_month = fmt(bg_color="white", border=1, border_color="#D9D9D9",
+                  num_format="yyyy-mm", align="center", bold=True)
+    for k in range(12):
+        rr = 14 + k  # 0-indexed
+        mcell = "$B$%d" % (rr + 1)
+        ws.write_formula(
+            rr, 1, "=DATE(YEAR(TODAY()),MONTH(TODAY())-%d,1)" % k, f_month)
+        ws.write_formula(
+            rr, 2,
+            "=COUNTIFS('W rejestracji'!$G$%(d)d:$G$%(l)d,\">=\"&%(m)s,"
+            "'W rejestracji'!$G$%(d)d:$G$%(l)d,\"<\"&EDATE(%(m)s,1))"
+            "+COUNTIFS(Zarejestrowane!$G$%(d)d:$G$%(l)d,\">=\"&%(m)s,"
+            "Zarejestrowane!$G$%(d)d:$G$%(l)d,\"<\"&EDATE(%(m)s,1))"
+            % {"d": DATA_ROW, "l": LAST, "m": mcell}, f_tbl_int)
+        ws.write_formula(
+            rr, 3,
+            "=COUNTIFS(Zarejestrowane!$H$%(d)d:$H$%(l)d,\">=\"&%(m)s,"
+            "Zarejestrowane!$H$%(d)d:$H$%(l)d,\"<\"&EDATE(%(m)s,1))"
+            % {"d": DATA_ROW, "l": LAST, "m": mcell}, f_tbl_int)
+    ws.set_column("D:D", 14)
 
     def breakdown(col0, title, items, wcol, zcol):
         """Emit name/count/count table at 0-indexed col0."""
@@ -709,28 +630,6 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
     for i in range(31):
         ws.write_formula(1 + i, 4, "=TODAY()-%d" % i, f_date)
     ws.set_column(4, 4, 14)
-    # F/G: lustrzane listy VIN z obu arkuszy (do wyszukiwarki VIN)
-    ws.write(0, 5, "VIN w rejestracji", f_hdr)
-    ws.write(0, 6, "VIN zarejestrowane", f_hdr)
-    # H/I: liczniki dopasowań do wyszukiwarki VIN (fragment w 'Nr rejestracyjny'!F5)
-    ws.write(0, 7, "trafienia W rej", f_hdr)
-    ws.write(0, 8, "trafienia katalog", f_hdr)
-    for i in range(DATA_ROW, LAST + 1):
-        rr = i - DATA_ROW + 2  # 1-indexed sheet row
-        ws.write_formula(rr - 1, 5,
-                         "=IF('W rejestracji'!$C$%d=\"\",\"\",'W rejestracji'!$C$%d)"
-                         % (i, i), f_text)
-        ws.write_formula(rr - 1, 6,
-                         "=IF(Zarejestrowane!$C$%d=\"\",\"\",Zarejestrowane!$C$%d)"
-                         % (i, i), f_text)
-        for src, dst in (("F", "H"), ("G", "I")):
-            ws.write_formula(
-                rr - 1, ord(dst) - ord("A"),
-                '=IF(AND($%(s)s%(r)d<>"",ISNUMBER(SEARCH('
-                "'Nr rejestracyjny'!$F$5,$%(s)s%(r)d))),"
-                "COUNT($%(d)s$1:%(d)s%(p)d)+1,\"\")"
-                % {"s": src, "d": dst, "r": rr, "p": rr - 1}, f_int)
-    ws.set_column(5, 8, 22)
     ws.hide()
 
     if with_vba:
