@@ -18,7 +18,10 @@ i logo 99rent.
    Formularz w wierszu 5 + przycisk **DODAJ WNIOSEK**. Kolumna
    *Dni od złożenia* liczy się automatycznie (`=DZIŚ()-data złożenia`)
    i podświetla zaległości (pomarańczowy > 10 dni, czerwony > 21 dni).
-3. **Zarejestrowane** — nowy katalog pojazdów zarejestrowanych — wiersze zielone
+3. **Import hurtowy** — wklejasz wiele pojazdów naraz (10, 20, 30…)
+   i przycisk **IMPORTUJ DO REJESTRU** dodaje je hurtem do rejestru
+   (duplikaty VIN są pomijane).
+4. **Zarejestrowane** — nowy katalog pojazdów zarejestrowanych — wiersze zielone
    (odebrane, 867 szt.); 17 z nich ma nr rejestracyjny i datę z arkusza
    źródłowego Arkusz2 (połączone po VIN). Formularz + przycisk
    **DODAJ DO KATALOGU** dla pojazdów zarejestrowanych wcześniej.

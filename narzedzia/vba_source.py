@@ -60,6 +60,11 @@ Private Function SafeDate(v As Variant, fallback As Date) As Date
     End If
 End Function
 
+Private Sub PaintYellow(ws As Worksheet, r As Long)
+    ' Wiersz oczekujacy na rejestracje = zolty (konwencja z pliku zrodlowego)
+    ws.Range(ws.Cells(r, 1), ws.Cells(r, 9)).Interior.Color = RGB(255, 245, 157)
+End Sub
+
 ' ---------------------------------------------------------------------
 ' Przycisk: DODAJ WNIOSEK (arkusz "W rejestracji")
 ' Dodaje nowy pojazd do rejestru pojazdow oczekujacych na rejestracje.
@@ -94,6 +99,7 @@ Sub DodajWniosek()
     ws.Cells(r, 8).Formula = "=IF($G" & r & "=" & Chr(34) & Chr(34) & _
         "," & Chr(34) & Chr(34) & ",TODAY()-$G" & r & ")"
     ws.Cells(r, 9).Value = ws.Cells(ROW_FORM, 9).Value          ' Uwagi
+    PaintYellow ws, r
 
     ws.Range(ws.Cells(ROW_FORM, 1), ws.Cells(ROW_FORM, 7)).ClearContents
     ws.Cells(ROW_FORM, 9).ClearContents
@@ -151,6 +157,154 @@ Sub DodajZarejestrowany()
 End Sub
 
 ' ---------------------------------------------------------------------
+' Przycisk: IMPORTUJ DO REJESTRU (arkusz "Import hurtowy")
+' Wkleja sie wiele pojazdow naraz (10, 20, 30...) w tabele importu,
+' a makro przenosi je wszystkie do arkusza "W rejestracji".
+' ---------------------------------------------------------------------
+Sub DodajHurtowo()
+    Dim wsI As Worksheet, wsW As Worksheet, wsZ As Worksheet
+    Dim i As Long, r As Long, n As Long, skipped As Long, lastI As Long
+    Dim vin As String, msg As String
+
+    Set wsI = ThisWorkbook.Worksheets("Import hurtowy")
+    Set wsW = ThisWorkbook.Worksheets("W rejestracji")
+    Set wsZ = ThisWorkbook.Worksheets("Zarejestrowane")
+
+    lastI = LastRow(wsI)
+    If lastI <= ROW_HDR Then
+        MsgBox "Wklej pojazdy w tabele od wiersza " & (ROW_HDR + 1) & _
+            " (kolumna VIN jest wymagana).", vbExclamation, "99rent"
+        Exit Sub
+    End If
+
+    Application.ScreenUpdating = False
+    n = 0: skipped = 0
+    For i = ROW_HDR + 1 To lastI
+        vin = Trim(CStr(wsI.Cells(i, 3).Value))
+        If vin <> "" Then
+            If FindVinRow(wsW, vin) > 0 Or FindVinRow(wsZ, vin) > 0 Then
+                skipped = skipped + 1
+            Else
+                r = LastRow(wsW) + 1
+                wsW.Cells(r, 1).Value = wsI.Cells(i, 1).Value    ' Marka
+                wsW.Cells(r, 2).Value = wsI.Cells(i, 2).Value    ' Model
+                wsW.Cells(r, 3).Value = vin                       ' VIN
+                wsW.Cells(r, 4).Value = wsI.Cells(i, 4).Value    ' Dealer
+                wsW.Cells(r, 5).Value = wsI.Cells(i, 5).Value    ' Wspolwl.
+                wsW.Cells(r, 6).Value = wsI.Cells(i, 6).Value    ' Urzad
+                wsW.Cells(r, 7).Value = SafeDate(wsI.Cells(i, 7).Value, Date)
+                wsW.Cells(r, 7).NumberFormat = "yyyy-mm-dd"
+                wsW.Cells(r, 8).Formula = "=IF($G" & r & "=" & Chr(34) & Chr(34) & _
+                    "," & Chr(34) & Chr(34) & ",TODAY()-$G" & r & ")"
+                wsW.Cells(r, 9).Value = wsI.Cells(i, 8).Value    ' Uwagi
+                PaintYellow wsW, r
+                n = n + 1
+            End If
+        End If
+    Next i
+    If n > 0 Then
+        wsI.Range(wsI.Cells(ROW_HDR + 1, 1), wsI.Cells(lastI, 8)).ClearContents
+    End If
+    Application.ScreenUpdating = True
+
+    msg = "Zaimportowano pojazdow: " & n & "."
+    If skipped > 0 Then msg = msg & vbCrLf & _
+        "Pominieto (VIN juz istnieje): " & skipped & "."
+    MsgBox msg, vbInformation, "99rent"
+End Sub
+
+' ---------------------------------------------------------------------
+' Przycisk: ZAREJESTRUJ ZAZNACZONE (arkusz "W rejestracji")
+' Zaznacz dowolne komorki wierszy pojazdow (mozna wiele naraz) i kliknij:
+' pojazdy przechodza do katalogu "Zarejestrowane" z dzisiejsza data
+' rejestracji. Numer rejestracyjny nadasz potem w zakladce Nr rejestracyjny.
+' ---------------------------------------------------------------------
+Sub ZarejestrujZaznaczone()
+    Dim wsW As Worksheet, wsZ As Worksheet
+    Dim cell As Range, rowsToMove As Object, key As Variant
+    Dim rw As Long, rz As Long, n As Long
+    Dim vin As String, dataZl As Variant, arr() As Long, i As Long, j As Long, tmp As Long
+
+    Set wsW = ThisWorkbook.Worksheets("W rejestracji")
+    Set wsZ = ThisWorkbook.Worksheets("Zarejestrowane")
+
+    If ActiveSheet.Name <> wsW.Name Then
+        MsgBox "Przejdz do arkusza W rejestracji i zaznacz wiersze pojazdow.", _
+            vbExclamation, "99rent"
+        Exit Sub
+    End If
+
+    Set rowsToMove = CreateObject("Scripting.Dictionary")
+    For Each cell In Selection.Cells
+        If cell.Row > ROW_HDR And cell.Row <= LastRow(wsW) Then
+            vin = Trim(CStr(wsW.Cells(cell.Row, 3).Value))
+            If vin <> "" And Not rowsToMove.Exists(cell.Row) Then
+                rowsToMove.Add cell.Row, vin
+            End If
+        End If
+    Next cell
+
+    If rowsToMove.Count = 0 Then
+        MsgBox "Zaznacz co najmniej jeden wiersz pojazdu (z VIN) w tabeli.", _
+            vbExclamation, "99rent"
+        Exit Sub
+    End If
+
+    If MsgBox("Przeniesc " & rowsToMove.Count & " pojazd(y) do katalogu " & _
+        "ZAREJESTROWANE z dzisiejsza data rejestracji?" & vbCrLf & _
+        "Numery rejestracyjne nadasz w zakladce Nr rejestracyjny.", _
+        vbYesNo + vbQuestion, "99rent") <> vbYes Then Exit Sub
+
+    ' posortuj wiersze malejaco, zeby usuwanie nie przesuwalo numeracji
+    ReDim arr(0 To rowsToMove.Count - 1)
+    i = 0
+    For Each key In rowsToMove.Keys
+        arr(i) = CLng(key)
+        i = i + 1
+    Next key
+    For i = 0 To UBound(arr) - 1
+        For j = i + 1 To UBound(arr)
+            If arr(j) > arr(i) Then
+                tmp = arr(i): arr(i) = arr(j): arr(j) = tmp
+            End If
+        Next j
+    Next i
+
+    Application.ScreenUpdating = False
+    n = 0
+    For i = 0 To UBound(arr)
+        rw = arr(i)
+        vin = Trim(CStr(wsW.Cells(rw, 3).Value))
+        If FindVinRow(wsZ, vin) = 0 Then
+            dataZl = wsW.Cells(rw, 7).Value
+            rz = LastRow(wsZ) + 1
+            wsZ.Cells(rz, 1).Value = wsW.Cells(rw, 1).Value      ' Marka
+            wsZ.Cells(rz, 2).Value = wsW.Cells(rw, 2).Value      ' Model
+            wsZ.Cells(rz, 3).Value = vin                          ' VIN
+            wsZ.Cells(rz, 5).Value = wsW.Cells(rw, 4).Value      ' Dealer
+            wsZ.Cells(rz, 6).Value = wsW.Cells(rw, 6).Value      ' Urzad
+            If IsDate(dataZl) Then
+                wsZ.Cells(rz, 7).Value = CDate(dataZl)
+                wsZ.Cells(rz, 7).NumberFormat = "yyyy-mm-dd"
+            End If
+            wsZ.Cells(rz, 8).Value = Date                         ' Data rejestracji
+            wsZ.Cells(rz, 8).NumberFormat = "yyyy-mm-dd"
+            wsZ.Cells(rz, 9).Formula = "=IF(OR($G" & rz & "=" & Chr(34) & Chr(34) & _
+                ",$H" & rz & "=" & Chr(34) & Chr(34) & ")," & Chr(34) & Chr(34) & _
+                ",$H" & rz & "-$G" & rz & ")"
+            wsZ.Cells(rz, 11).Value = wsW.Cells(rw, 9).Value     ' Uwagi
+            n = n + 1
+        End If
+        wsW.Rows(rw).Delete Shift:=xlUp
+    Next i
+    Application.ScreenUpdating = True
+
+    MsgBox "Przeniesiono do katalogu: " & n & " pojazd(y)." & vbCrLf & _
+        "Numery rejestracyjne nadasz w zakladce Nr rejestracyjny.", _
+        vbInformation, "99rent"
+End Sub
+
+' ---------------------------------------------------------------------
 ' Przycisk: ZAREJESTRUJ POJAZD (arkusz "Nr rejestracyjny")
 ' Nadaje numer rejestracyjny pojazdowi oczekujacemu: przenosi go
 ' z "W rejestracji" do katalogu "Zarejestrowane" i liczy dni.
@@ -177,15 +331,31 @@ Sub ZarejestrujPojazd()
     End If
     dataRej = SafeDate(wsN.Range("C7").Value, Date)
 
-    rw = FindVinRow(wsW, vin)
-    If rw = 0 Then
-        MsgBox "Nie znaleziono VIN " & vin & " w arkuszu W rejestracji." _
-            & vbCrLf & "Uzyj formularza w arkuszu Zarejestrowane, jesli " _
-            & "pojazd nie przechodzil przez rejestr.", vbExclamation, "99rent"
+    ' Pojazd juz w katalogu (np. przeniesiony hurtowo) -> tylko nadaj numer
+    rz = FindVinRow(wsZ, vin)
+    If rz > 0 Then
+        If Trim(CStr(wsZ.Cells(rz, 4).Value)) <> "" Then
+            MsgBox "Pojazd " & vin & " ma juz numer " & _
+                wsZ.Cells(rz, 4).Value & ".", vbExclamation, "99rent"
+            Exit Sub
+        End If
+        wsZ.Cells(rz, 4).Value = nrRej
+        If Not IsDate(wsZ.Cells(rz, 8).Value) Then
+            wsZ.Cells(rz, 8).Value = dataRej
+            wsZ.Cells(rz, 8).NumberFormat = "yyyy-mm-dd"
+        End If
+        wsN.Range("C5:C7").ClearContents
+        MsgBox "Nadano numer " & nrRej & " pojazdowi " & vin & _
+            " (byl juz w katalogu).", vbInformation, "99rent"
         Exit Sub
     End If
-    If FindVinRow(wsZ, vin) > 0 Then
-        MsgBox "Pojazd o VIN " & vin & " jest juz w katalogu.", vbExclamation, "99rent"
+
+    rw = FindVinRow(wsW, vin)
+    If rw = 0 Then
+        MsgBox "Nie znaleziono VIN " & vin & " ani w arkuszu W rejestracji, " _
+            & "ani w katalogu Zarejestrowane." & vbCrLf & "Uzyj formularza " _
+            & "w arkuszu Zarejestrowane, jesli pojazd nie przechodzil " _
+            & "przez rejestr.", vbExclamation, "99rent"
         Exit Sub
     End If
 
@@ -238,6 +408,10 @@ End Sub
 
 Sub IdzPodsumowanie()
     Application.Goto ThisWorkbook.Worksheets("PODSUMOWANIE").Range("A1"), True
+End Sub
+
+Sub IdzImport()
+    Application.Goto ThisWorkbook.Worksheets("Import hurtowy").Range("A1"), True
 End Sub
 
 Sub IdzPulpit()

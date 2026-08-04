@@ -133,9 +133,11 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
     f_int = fmt(num_format="0", align="center")
     f_money = fmt(num_format='#,##0.00 "zł"')
     f_kpi_num = fmt(bold=True, font_color=RED, font_size=26,
-                    align="center", valign="vcenter")
+                    align="center", valign="vcenter", bg_color="white",
+                    top=1, left=1, right=1, border_color="#D9D9D9")
     f_kpi_lbl = fmt(font_size=9, font_color="#595959", align="center",
-                    valign="top", text_wrap=True, bold=True)
+                    valign="top", text_wrap=True, bold=True, bg_color="white",
+                    bottom=1, left=1, right=1, border_color="#D9D9D9")
     f_sec = fmt(bold=True, font_size=11, font_color=RED)
     f_lbl = fmt(bold=True)
     f_val = fmt(align="center", bold=True)
@@ -151,6 +153,13 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
     f_text_red = fmt(bg_color="#FFC7CE")
     f_date_red = fmt(bg_color="#FFC7CE", num_format="yyyy-mm-dd")
     f_int_red = fmt(bg_color="#FFC7CE", num_format="0", align="center")
+    # żółte wiersze = pojazdy w rejestracji (konwencja z pliku źródłowego)
+    f_text_y = fmt(bg_color="#FFF59D")
+    f_date_y = fmt(bg_color="#FFF59D", num_format="yyyy-mm-dd")
+    f_int_y = fmt(bg_color="#FFF59D", num_format="0", align="center")
+    f_import = fmt(bg_color="#FFFDE7", border=1, border_color="#E0D9A0")
+    f_import_date = fmt(bg_color="#FFFDE7", border=1, border_color="#E0D9A0",
+                        num_format="yyyy-mm-dd")
     f_bandrow = fmt(bg_color=BAND)
 
     def header_band(ws, title, ncols):
@@ -178,7 +187,7 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
     ws.set_column("B:C", 14)
     ws.set_column("D:K", 12)
     header_band(ws, "  RAPORT REJESTRACJI POJAZDÓW", 11)
-    ws.insert_image("B3", logo, {"x_scale": 0.21, "y_scale": 0.21,
+    ws.insert_image("B3", logo, {"x_scale": 0.105, "y_scale": 0.105,
                                  "object_position": 3})
 
     kpis = [
@@ -201,13 +210,14 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
 
     if with_vba:
         navs = [("W REJESTRACJI", "IdzWRejestracji"),
+                ("IMPORT HURTOWY", "IdzImport"),
                 ("NADAJ NR REJ.", "IdzNrRej"),
                 ("KATALOG ZAREJESTR.", "IdzZarejestrowane"),
                 ("PODSUMOWANIE", "IdzPodsumowanie")]
-        col = 3
+        col = 1
         for caption, macro in navs:
             ws.insert_button(7, col, {"macro": macro, "caption": caption,
-                                      "width": 148, "height": 34})
+                                      "width": 140, "height": 34})
             col += 2
     ws.set_row(7, 30)
 
@@ -215,16 +225,17 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
         "JAK KORZYSTAĆ Z PLIKU\n"
         "1.  Przy otwarciu kliknij „Włącz zawartość” — przyciski wymagają włączonych makr. Jeśli Excel blokuje makra: zamknij plik, "
         "kliknij go prawym przyciskiem → Właściwości → zaznacz „Odblokuj” → OK i otwórz ponownie.\n"
-        "2.  W REJESTRACJI — nowy wniosek wpisujesz w żółte pola formularza (wiersz 5) i klikasz DODAJ WNIOSEK. "
+        "2.  W REJESTRACJI — pojazdy oczekujące (żółte wiersze). Nowy wniosek wpisujesz w formularzu (wiersz 5) i klikasz DODAJ WNIOSEK. "
         "Kolumna „Dni od złożenia” liczy się sama i podświetla pojazdy czekające zbyt długo (pomarańczowy > 10 dni, czerwony > 21 dni).\n"
-        "3.  NR REJESTRACYJNY — po odbiorze rejestracji wybierz VIN z listy, wpisz numer rejestracyjny i kliknij ZAREJESTRUJ POJAZD. "
-        "Pojazd przenosi się automatycznie do katalogu ZAREJESTROWANE, a licznik dni (od złożenia wniosku do rejestracji) zostaje zapisany.\n"
-        "4.  ZAREJESTROWANE — pojazd zarejestrowany wcześniej (poza rejestrem) dodasz bezpośrednio przyciskiem DODAJ DO KATALOGU.\n"
-        "5.  PODSUMOWANIE — statystyki wg urzędu, dealera i marki oraz czasy rejestracji liczą się automatycznie.\n"
+        "3.  IMPORT HURTOWY — wklejasz 10, 20, 30… pojazdów naraz (z VIN-ami) i jednym kliknięciem dodajesz wszystkie do rejestru.\n"
+        "4.  Po odebraniu rejestracji: zaznacz pojazdy w W REJESTRACJI i kliknij ZAREJESTRUJ ZAZNACZONE — przechodzą do katalogu "
+        "ZAREJESTROWANE z licznikiem dni. Numer rejestracyjny nadasz potem w zakładce NR REJESTRACYJNY (działa też dla pojazdów już w katalogu).\n"
+        "5.  ZAREJESTROWANE — pojazd zarejestrowany wcześniej (poza rejestrem) dodasz bezpośrednio przyciskiem DODAJ DO KATALOGU.\n"
+        "6.  PODSUMOWANIE — statystyki wg urzędu, dealera i marki oraz czasy rejestracji liczą się automatycznie.\n"
         "Żółte pola = pola do wypełnienia.  Duplikaty VIN są blokowane przez przyciski i podświetlane na czerwono w tabelach."
     )
-    ws.merge_range(9, 1, 16, 10, instr, f_instr)
-    ws.write(18, 1, "Wygenerowano na podstawie pliku Raport_rejestracji.xlsx", f_note)
+    ws.merge_range(9, 1, 17, 10, instr, f_instr)
+    ws.write(19, 1, "Wygenerowano na podstawie pliku Raport_rejestracji.xlsx", f_note)
 
     # ========================================================= W REJESTRACJI
     ws = wb.add_worksheet("W rejestracji")
@@ -258,6 +269,12 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
         ws.insert_button(3, 10, {"macro": "DodajWniosek",
                                  "caption": "DODAJ WNIOSEK",
                                  "width": 150, "height": 40})
+        ws.insert_button(6, 10, {"macro": "ZarejestrujZaznaczone",
+                                 "caption": "ZAREJESTRUJ ZAZNACZONE ▶",
+                                 "width": 170, "height": 34})
+        ws.write(9, 10, "Zaznacz wiersze pojazdów i kliknij, aby przenieść "
+                 "je do katalogu ZAREJESTROWANE (nr rej. nadasz później).",
+                 f_note)
 
     for c, h in enumerate(headers):
         ws.write(HDR_ROW - 1, c, h, f_hdr)
@@ -266,20 +283,21 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
     r = DATA_ROW - 1  # 0-indexed
     for row in wrej:
         marka, model, vin, dealer, wsp, urzad, dzl, uwagi, is_red = row
-        ftxt = f_text_red if is_red else None
+        ftxt = f_text_red if is_red else f_text_y
+        fdat = f_date_red if is_red else f_date_y
+        fint = f_int_red if is_red else f_int_y
         for c, v in ((0, marka), (1, model), (2, vin), (3, dealer),
                      (4, wsp), (5, urzad), (8, uwagi)):
             if v is not None:
-                ws.write_string(r, c, v, ftxt or colfmts[c])
-            elif is_red:
-                ws.write_blank(r, c, None, f_text_red)
+                ws.write_string(r, c, v, ftxt)
+            else:
+                ws.write_blank(r, c, None, ftxt)
         if dzl is not None:
-            ws.write_datetime(r, 6, dzl, f_date_red if is_red else f_date)
-        elif is_red:
-            ws.write_blank(r, 6, None, f_date_red)
+            ws.write_datetime(r, 6, dzl, fdat)
+        else:
+            ws.write_blank(r, 6, None, fdat)
         ws.write_formula(
-            r, 7, '=IF($G%d="","",TODAY()-$G%d)' % (r + 1, r + 1),
-            f_int_red if is_red else f_int)
+            r, 7, '=IF($G%d="","",TODAY()-$G%d)' % (r + 1, r + 1), fint)
         r += 1
     last_data = r  # 0-indexed row after last
 
@@ -293,9 +311,6 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
                            "minimum": 11, "maximum": 21, "format": f_amber})
     ws.conditional_format(DATA_ROW - 1, 2, LAST - 1, 2,
                           {"type": "duplicate", "format": f_red})
-    ws.conditional_format(DATA_ROW - 1, 0, last_data - 1, 8,
-                          {"type": "formula",
-                           "criteria": "=MOD(ROW(),2)=0", "format": f_bandrow})
     nl = len(marki)
     ws.data_validation(FORM_ROW - 1, 0, FORM_ROW - 1, 0,
                        {"validate": "list", "source": "=Listy!$A$2:$A$%d" % (nl + 1),
@@ -316,6 +331,44 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
                        {"validate": "any", "show_input": True,
                         "input_title": "Data złożenia",
                         "input_message": "Format RRRR-MM-DD. Puste pole = dzisiejsza data."})
+
+    # ======================================================= IMPORT HURTOWY
+    ws = wb.add_worksheet("Import hurtowy")
+    sheet_order.append(ws)
+    ws.set_tab_color("#F9A825")
+    ihdr = ["Marka", "Model", "VIN", "Dealer", "Współwłaściciel", "Urząd",
+            "Data złożenia", "Uwagi"]
+    iw = [13, 18, 21, 15, 15, 14, 13, 30]
+    for c, w in enumerate(iw):
+        ws.set_column(c, c, w)
+    ws.set_column(8, 8, 2)
+    ws.set_column(9, 9, 26)
+    header_band(ws, "  IMPORT HURTOWY — WIELE POJAZDÓW NARAZ", 8)
+    nav_button(ws, 9)
+
+    ws.merge_range(2, 0, 2, 7,
+                   "Wklej 10, 20, 30… pojazdów do tabeli poniżej (od wiersza 9) "
+                   "i kliknij IMPORTUJ DO REJESTRU", f_form_title)
+    ws.merge_range(3, 0, 5, 7,
+                   "Kolumny jak w arkuszu W rejestracji: wymagany jest VIN (kolumna C). "
+                   "Pusta data złożenia = dzisiejsza data. Pojazdy, których VIN już "
+                   "istnieje w rejestrze lub katalogu, zostaną pominięte — po imporcie "
+                   "zobaczysz podsumowanie. Zaimportowane wiersze trafiają do arkusza "
+                   "W REJESTRACJI z żółtym oznaczeniem, a tabela importu jest czyszczona.",
+                   f_instr)
+    if with_vba:
+        ws.insert_button(2, 9, {"macro": "DodajHurtowo",
+                                "caption": "IMPORTUJ DO REJESTRU",
+                                "width": 180, "height": 44})
+
+    for c, h in enumerate(ihdr):
+        ws.write(HDR_ROW - 1, c, h, f_hdr)
+    ws.set_row(HDR_ROW - 1, 28)
+    for rr in range(DATA_ROW - 1, DATA_ROW - 1 + 300):
+        for c in range(8):
+            ws.write_blank(rr, c, None,
+                           f_import_date if c == 6 else f_import)
+    ws.freeze_panes(HDR_ROW, 0)
 
     # ========================================================= ZAREJESTROWANE
     ws = wb.add_worksheet("Zarejestrowane")
@@ -433,23 +486,30 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
 
     ws.write(11, 1, "PODGLĄD POJAZDU (dla wpisanego VIN)", f_sec)
     prev = [
-        ("Marka", "$A"), ("Model", "$B"), ("Dealer", "$D"), ("Urząd", "$F"),
+        ("Marka", "$A", "$A"), ("Model", "$B", "$B"),
+        ("Dealer", "$D", "$E"), ("Urząd", "$F", "$F"),
     ]
     rr = 12
-    for label, colref in prev:
+    for label, colw, colz in prev:
         ws.write(rr, 1, label, f_lbl)
         ws.write_formula(
             rr, 2,
             '=IF($C$5="","",IFERROR(INDEX(\'W rejestracji\'!%s$%d:%s$%d,'
-            'MATCH($C$5,\'W rejestracji\'!$C$%d:$C$%d,0)),"nie znaleziono"))'
-            % (colref, DATA_ROW, colref, LAST, DATA_ROW, LAST), f_text)
+            'MATCH($C$5,\'W rejestracji\'!$C$%d:$C$%d,0)),'
+            'IFERROR(INDEX(Zarejestrowane!%s$%d:%s$%d,'
+            'MATCH($C$5,Zarejestrowane!$C$%d:$C$%d,0)),"nie znaleziono")))'
+            % (colw, DATA_ROW, colw, LAST, DATA_ROW, LAST,
+               colz, DATA_ROW, colz, LAST, DATA_ROW, LAST), f_text)
         rr += 1
     ws.write(rr, 1, "Data złożenia wniosku", f_lbl)
     ws.write_formula(
         rr, 2,
         '=IF($C$5="","",IFERROR(INDEX(\'W rejestracji\'!$G$%d:$G$%d,'
-        'MATCH($C$5,\'W rejestracji\'!$C$%d:$C$%d,0)),""))'
-        % (DATA_ROW, LAST, DATA_ROW, LAST), f_date)
+        'MATCH($C$5,\'W rejestracji\'!$C$%d:$C$%d,0)),'
+        'IFERROR(INDEX(Zarejestrowane!$G$%d:$G$%d,'
+        'MATCH($C$5,Zarejestrowane!$C$%d:$C$%d,0)),"")))'
+        % (DATA_ROW, LAST, DATA_ROW, LAST, DATA_ROW, LAST, DATA_ROW, LAST),
+        f_date)
     rr += 1
     ws.write(rr, 1, "Dni od złożenia (dziś)", f_lbl)
     ws.write_formula(
@@ -458,11 +518,13 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
         'MATCH($C$5,\'W rejestracji\'!$C$%d:$C$%d,0)),""))'
         % (DATA_ROW, LAST, DATA_ROW, LAST), f_int)
     rr += 2
-    ws.merge_range(rr, 1, rr + 3, 3,
+    ws.merge_range(rr, 1, rr + 4, 3,
                    "Po kliknięciu ZAREJESTRUJ POJAZD pojazd zostaje przeniesiony "
                    "z arkusza W REJESTRACJI do katalogu ZAREJESTROWANE, a licznik "
                    "dni od złożenia wniosku do rejestracji zapisuje się w kolumnie "
-                   "„Czas rejestracji (dni)”.", f_note)
+                   "„Czas rejestracji (dni)”. Jeśli pojazd jest już w katalogu "
+                   "(np. przeniesiony przyciskiem ZAREJESTRUJ ZAZNACZONE), makro "
+                   "tylko nadaje mu wpisany numer rejestracyjny.", f_note)
 
     # ========================================================== PODSUMOWANIE
     ws = wb.add_worksheet("PODSUMOWANIE")
