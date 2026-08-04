@@ -150,19 +150,73 @@ DEALER_ALIASES = {
 }
 
 
+STATE = "user_file.xlsm"   # jeśli istnieje, buduj ze stanu pliku roboczego
+
+
+def load_state(path):
+    """Wczytuje aktualny stan z pliku roboczego użytkownika:
+    W rejestracji (z kolorami), katalog, zakładki Archiwum RRRR-MM."""
+    wb = openpyxl.load_workbook(path, data_only=True)
+    def s(v):
+        return str(v).strip() if v is not None and str(v).strip() else None
+    wrej = []
+    ws = wb["W rejestracji"]
+    for r in range(DATA_ROW, ws.max_row + 1):
+        vals = [ws.cell(row=r, column=c).value for c in range(1, 10)]
+        if not any(s(v) for v in vals[:7]):
+            continue
+        f = ws.cell(row=r, column=1).fill
+        rgb = str(f.fgColor.rgb) if f.patternType == "solid" else ""
+        wrej.append((s(vals[0]), s(vals[1]), s(vals[2]), s(vals[3]),
+                     s(vals[4]), s(vals[5]), vals[6], s(vals[8]),
+                     rgb == "FFFFC7CE"))
+    def rows_of(ws, first):
+        out = []
+        for r in range(first, ws.max_row + 1):
+            v = [ws.cell(row=r, column=c).value for c in range(1, 11)]
+            if not s(v[2]):
+                continue
+            out.append((s(v[0]), s(v[1]), s(v[2]), s(v[3]), s(v[4]),
+                        s(v[5]), v[6], v[7], None, s(v[9])))
+        return out
+    zarej = rows_of(wb["Zarejestrowane"], DATA_ROW)
+    archiwa = {}
+    for name in wb.sheetnames:
+        if name.startswith("Archiwum "):
+            archiwa[name.split()[1]] = rows_of(wb[name], 2)
+    pilne = []
+    if "Pilne" in wb.sheetnames:
+        for r in wb["Pilne"].iter_rows(min_row=4, max_col=2, values_only=True):
+            if r[0] or r[1]:
+                pilne.append((s(r[0]), s(r[1])))
+    return wrej, zarej, archiwa, pilne
+
+
 def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
           logo_small="logo99rent_small.png"):
-    wrej, zarej, pilne = load_data()
+    import os
+    if os.path.exists(STATE):
+        wrej, zarej, stare_by_month, pilne = load_state(STATE)
+    else:
+        wrej, zarej, pilne = load_data()
+        prog = (datetime.date.today().year, datetime.date.today().month)
+        stare_by_month = {}
+        for z in zarej:
+            if z[7] is not None and (z[7].year, z[7].month) < prog:
+                stare_by_month.setdefault("%04d-%02d" % (z[7].year, z[7].month),
+                                          []).append(z)
+        stare_ids = {id(z) for rows in stare_by_month.values() for z in rows}
+        zarej = [z for z in zarej if id(z) not in stare_ids]
 
-    # rejestracje ze STARYCH miesięcy od razu do plików archiwum
-    prog = (datetime.date.today().year, datetime.date.today().month)
-    stare_by_month = {}
-    for z in zarej:
-        if z[7] is not None and (z[7].year, z[7].month) < prog:
-            stare_by_month.setdefault("%04d-%02d" % (z[7].year, z[7].month),
-                                      []).append(z)
-    stare_ids = {id(z) for rows in stare_by_month.values() for z in rows}
-    zarej = [z for z in zarej if id(z) not in stare_ids]
+    # arkusze, po których liczą się "zarejestrowane": katalog + archiwa
+    REJ_SHEETS = [("Zarejestrowane", DATA_ROW, LAST)] + \
+        [("'Archiwum %s'" % k, 2, 5000) for k in sorted(stare_by_month)]
+
+    def zsum(tmpl):
+        """Suma formuły po katalogu i wszystkich zakładkach Archiwum.
+        tmpl używa %(s)s (arkusz), %(a)d (pierwszy wiersz), %(b)d (ostatni)."""
+        return "+".join(tmpl % {"s": s0, "a": a0, "b": b0}
+                        for s0, a0, b0 in REJ_SHEETS)
     marki = canonical([r[0] for r in wrej] + [z[0] for z in zarej])
     dealerzy = canonical([r[3] for r in wrej] + [z[4] for z in zarej])
     wspolwl = canonical([r[4] for r in wrej])
@@ -280,15 +334,17 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
     ws.insert_image("B3", logo, {"x_scale": 0.24, "y_scale": 0.24,
                                  "object_position": 3})
 
+    cnt_all = zsum('SUMPRODUCT(--((%(s)s!$A$%(a)d:$A$%(b)d&%(s)s!$C$%(a)d:$C$%(b)d)<>""))')
+    cnt_i = zsum('COUNT(%(s)s!$I$%(a)d:$I$%(b)d)')
+    sum_i = zsum('SUM(%(s)s!$I$%(a)d:$I$%(b)d)')
+    cnt_mies = zsum('COUNTIFS(%(s)s!$H$%(a)d:$H$%(b)d,">="&DATE(YEAR(TODAY()),MONTH(TODAY()),1))')
     kpis = [
         ("=SUMPRODUCT(--(('W rejestracji'!$A$%d:$A$%d&'W rejestracji'!$C$%d:$C$%d)<>\"\"))"
          % (DATA_ROW, LAST, DATA_ROW, LAST), "POJAZDY\nW REJESTRACJI"),
-        ("=SUMPRODUCT(--((Zarejestrowane!$A$%d:$A$%d&Zarejestrowane!$C$%d:$C$%d)<>\"\"))"
-         % (DATA_ROW, LAST, DATA_ROW, LAST), "POJAZDY\nZAREJESTROWANE"),
-        ("=IF(COUNT(Zarejestrowane!$I$%d:$I$%d)=0,\"—\",ROUND(AVERAGE(Zarejestrowane!$I$%d:$I$%d),1))"
-         % (DATA_ROW, LAST, DATA_ROW, LAST), "ŚREDNI CZAS\nREJESTRACJI (DNI)"),
-        ("=COUNTIFS(Zarejestrowane!$H$%d:$H$%d,\">=\"&DATE(YEAR(TODAY()),MONTH(TODAY()),1))"
-         % (DATA_ROW, LAST), "ZAREJESTROWANE\nW TYM MIESIĄCU"),
+        ("=" + cnt_all, "POJAZDY\nZAREJESTROWANE"),
+        ("=IF((%s)=0,\"—\",ROUND((%s)/(%s),1))" % (cnt_i, sum_i, cnt_i),
+         "ŚREDNI CZAS\nREJESTRACJI (DNI)"),
+        ("=" + cnt_mies, "ZAREJESTROWANE\nW TYM MIESIĄCU"),
     ]
     col = 3
     for formula, label in kpis:
@@ -607,21 +663,16 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
         ("Pojazdy w rejestracji (oczekujące)",
          "=SUMPRODUCT(--(('W rejestracji'!$A$%d:$A$%d&'W rejestracji'!$C$%d:$C$%d)<>\"\"))"
          % (DATA_ROW, LAST, DATA_ROW, LAST)),
-        ("Pojazdy zarejestrowane (katalog)",
-         "=SUMPRODUCT(--((Zarejestrowane!$A$%d:$A$%d&Zarejestrowane!$C$%d:$C$%d)<>\"\"))"
-         % (DATA_ROW, LAST, DATA_ROW, LAST)),
+        ("Pojazdy zarejestrowane (z archiwum)", "=" + cnt_all),
         ("Średni czas rejestracji (dni)",
-         "=IF(COUNT(Zarejestrowane!$I$%d:$I$%d)=0,\"—\",ROUND(AVERAGE(Zarejestrowane!$I$%d:$I$%d),1))"
-         % (DATA_ROW, LAST, DATA_ROW, LAST)),
+         "=IF((%s)=0,\"—\",ROUND((%s)/(%s),1))" % (cnt_i, sum_i, cnt_i)),
         ("Maksymalny czas rejestracji (dni)",
-         "=IF(COUNT(Zarejestrowane!$I$%d:$I$%d)=0,\"—\",MAX(Zarejestrowane!$I$%d:$I$%d))"
-         % (DATA_ROW, LAST, DATA_ROW, LAST)),
+         "=IF((%s)=0,\"—\",MAX(%s))" % (cnt_i, ",".join(
+             "%s!$I$%d:$I$%d" % (s0, a0, b0) for s0, a0, b0 in REJ_SHEETS))),
         ("Minimalny czas rejestracji (dni)",
-         "=IF(COUNT(Zarejestrowane!$I$%d:$I$%d)=0,\"—\",MIN(Zarejestrowane!$I$%d:$I$%d))"
-         % (DATA_ROW, LAST, DATA_ROW, LAST)),
-        ("Zarejestrowane w bieżącym miesiącu",
-         "=COUNTIFS(Zarejestrowane!$H$%d:$H$%d,\">=\"&DATE(YEAR(TODAY()),MONTH(TODAY()),1))"
-         % (DATA_ROW, LAST)),
+         "=IF((%s)=0,\"—\",MIN(%s))" % (cnt_i, ",".join(
+             "%s!$I$%d:$I$%d" % (s0, a0, b0) for s0, a0, b0 in REJ_SHEETS))),
+        ("Zarejestrowane w bieżącym miesiącu", "=" + cnt_mies),
         ("Najdłużej oczekujący (dni od złożenia)",
          "=IF(COUNT('W rejestracji'!$H$%d:$H$%d)=0,\"—\",MAX('W rejestracji'!$H$%d:$H$%d))"
          % (DATA_ROW, LAST, DATA_ROW, LAST)),
@@ -646,9 +697,8 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
                             "source": "=Listy!$%s$2:$%s$%d" % (lcol, lcol, n + 1),
                             "show_error": False})
     FM, FU, FMA, FD = "$C$13", "$C$14", "$C$15", "$C$16"
-    d, l = DATA_ROW, LAST
 
-    def sump(sheet, cmarka, cdealer, curzad, cdata):
+    def sump(sheet, cmarka, cdealer, curzad, cdata, d=DATA_ROW, l=LAST):
         g = lambda col: "%s!$%s$%d:$%s$%d" % (sheet, col, d, col, l)
         return ("=SUMPRODUCT((%(vin)s<>\"\")"
                 "*IF(%(fu)s=\"(wszystkie)\",1,--(%(urz)s=%(fu)s))"
@@ -664,7 +714,9 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
     ws.write(17, 1, "W rejestracji (wg daty złożenia)", f_tbl_text)
     ws.write_formula(17, 2, sump("'W rejestracji'", "A", "D", "F", "G"), f_val_box)
     ws.write(18, 1, "Zarejestrowane (wg daty rejestracji)", f_tbl_text)
-    ws.write_formula(18, 2, sump("Zarejestrowane", "A", "E", "F", "H"), f_val_box)
+    ws.write_formula(18, 2, "=" + "+".join(
+        sump(s0, "A", "E", "F", "H", a0, b0)[1:] for s0, a0, b0 in REJ_SHEETS),
+        f_val_box)
     ws.merge_range(15, 3, 18, 5,
                    "Wybierz wartości z list (żółte pola) — liczniki obok "
                    "przeliczają się od razu. „(wszystkie)” wyłącza dany filtr. "
@@ -691,15 +743,11 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
             "+COUNTIFS(Zarejestrowane!$G$%(d)d:$G$%(l)d,\">=\"&%(m)s,"
             "Zarejestrowane!$G$%(d)d:$G$%(l)d,\"<\"&EDATE(%(m)s,1))"
             % {"d": DATA_ROW, "l": LAST, "m": mcell}, f_tbl_int)
-        klucz_m = "2026-%02d" % (5 + k)
-        arch_add = ""
-        if klucz_m in stare_by_month:
-            arch_add = ("+COUNT('Archiwum %s'!$H$2:$H$5000)" % klucz_m)
         ws.write_formula(
             rr, 3,
-            ("=COUNTIFS(Zarejestrowane!$H$%(d)d:$H$%(l)d,\">=\"&%(m)s,"
-             "Zarejestrowane!$H$%(d)d:$H$%(l)d,\"<\"&EDATE(%(m)s,1))"
-             % {"d": DATA_ROW, "l": LAST, "m": mcell}) + arch_add, f_tbl_int)
+            "=" + zsum('COUNTIFS(%%(s)s!$H$%%(a)d:$H$%%(b)d,">="&%(m)s,'
+                       '%%(s)s!$H$%%(a)d:$H$%%(b)d,"<"&EDATE(%(m)s,1))'
+                       % {"m": mcell}), f_tbl_int)
     ws.set_column("D:D", 14)
 
     def breakdown(col0, title, items, wcol, zcol):
@@ -718,9 +766,9 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
                    xl_col_to_name(col0), rr + 1), f_tbl_int)
             ws.write_formula(
                 rr, col0 + 2,
-                "=COUNTIF(Zarejestrowane!$%s$%d:$%s$%d,%s%d)"
-                % (zcol, DATA_ROW, zcol, LAST,
-                   xl_col_to_name(col0), rr + 1), f_tbl_int)
+                "=" + zsum('COUNTIF(%%(s)s!$%s$%%(a)d:$%s$%%(b)d,%s%d)'
+                           % (zcol, zcol, xl_col_to_name(col0), rr + 1)),
+                f_tbl_int)
             rr += 1
         ws.write(rr, col0, "inne / brak", f_tbl_text)
         c1 = xl_col_to_name(col0 + 1)
