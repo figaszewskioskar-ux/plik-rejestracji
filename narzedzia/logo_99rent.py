@@ -6,7 +6,7 @@ from PIL import Image, ImageDraw, ImageFont
 
 RED = (237, 28, 36)
 S = 1024
-SS = 4  # supersampling
+SS = 6  # supersampling
 
 FONT = "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf"
 
@@ -28,17 +28,17 @@ def main(out="logo99rent.png", out_small="logo99rent_small.png"):
 
     # "99" — duże, grube, lekko zachodzące na siebie
     f99 = ImageFont.truetype(FONT, int(W * 0.62))
-    sw99 = int(W * 0.007)
+    sw99 = int(W * 0.005)
     spaced_text(d, "99", f99, W / 2, int(W * 0.35), int(W * 0.63), sw99)
 
     # "RENT" — szeroki, bardzo gruby
     fr = ImageFont.truetype(FONT, int(W * 0.20))
-    swr = int(W * 0.009)
+    swr = int(W * 0.007)
     spaced_text(d, "RENT", fr, W / 2, int(W * 0.82), int(W * 0.78), swr)
 
     img = img.resize((S, S), Image.LANCZOS)
     img.save(out)
-    img.resize((128, 128), Image.LANCZOS).save(out_small)
+    img.resize((256, 256), Image.LANCZOS).save(out_small)
     print("logo zapisane:", out, out_small)
 
 

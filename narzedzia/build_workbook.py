@@ -183,7 +183,7 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
         ws.merge_range(0, 0, 0, ncols - 2, title, f_band)
         ws.write(0, ncols - 1, "99rent", f_band_sub)
         ws.insert_image(0, 0, logo_small,
-                        {"x_scale": 0.28, "y_scale": 0.28,
+                        {"x_scale": 0.14, "y_scale": 0.14,
                          "x_offset": 4, "y_offset": 4,
                          "object_position": 3})
 
