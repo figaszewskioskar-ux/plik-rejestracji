@@ -3,7 +3,7 @@
 (odwzorowanie przesłanego logo)."""
 from PIL import Image, ImageDraw, ImageFont
 
-RED = (228, 13, 24)
+RED = (237, 28, 36)
 S = 1024
 SS = 4  # supersampling
 
@@ -32,12 +32,12 @@ def main(out="logo99rent.png", out_small="logo99rent_small.png"):
     W = S * SS
     img = Image.new("RGB", (W, W), RED)
     d = ImageDraw.Draw(img)
-    R = int(W * 0.16)             # promień koła '9'
-    hr = int(R * 0.44)            # promień otworu
+    R = int(W * 0.175)            # promień koła '9'
+    hr = int(R * 0.40)            # promień otworu
     tw = int(R * 0.44)            # szerokość ogona
     tail = int(R * 1.78)          # długość ogona pod środkiem koła
-    cy = int(W * 0.295)
-    c1 = int(W * 0.325)
+    cy = int(W * 0.30)
+    c1 = int(W * 0.31)
     c2 = c1 + int(R * 1.82)       # lekkie nachodzenie na pierwszą '9'
     gap = int(W * 0.011)          # czerwona szczelina między dziewiątkami
 
@@ -48,14 +48,14 @@ def main(out="logo99rent.png", out_small="logo99rent_small.png"):
     hole(d, c2, cy, hr)
 
     # RENT — bardzo gruby napis, litery rozstrzelone na szerokość dziewiątek
-    f = font(int(W * 0.225))
+    f = font(int(W * 0.24))
     letters = "RENT"
     widths = [d.textlength(ch, font=f) for ch in letters]
-    span = W * 0.64
+    span = W * 0.76
     gap_l = (span - sum(widths)) / (len(letters) - 1)
     x = (W - span) / 2
-    y = int(W * 0.815)
-    sw = int(W * 0.006)
+    y = int(W * 0.82)
+    sw = int(W * 0.010)
     for ch, cw in zip(letters, widths):
         d.text((x, y), ch, font=f, fill="white", anchor="lm",
                stroke_width=sw, stroke_fill="white")

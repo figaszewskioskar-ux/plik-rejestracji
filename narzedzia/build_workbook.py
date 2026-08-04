@@ -161,7 +161,7 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
 
     f_red = fmt(bg_color="#FFC7CE", font_color="#9C0006")
     f_amber = fmt(bg_color="#FFEB9C", font_color="#9C6500")
-    B = {"border": 1, "border_color": "#C8C8C8"}
+    B = {"border": 1, "border_color": "#9E9E9E"}
     f_text_red = fmt(bg_color="#FFC7CE", **B)
     f_date_red = fmt(bg_color="#FFC7CE", num_format="yyyy-mm-dd", **B)
     f_int_red = fmt(bg_color="#FFC7CE", num_format="0", align="center", **B)

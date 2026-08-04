@@ -64,7 +64,7 @@ Private Sub PaintRow(ws As Worksheet, r As Long, lastCol As Long, clr As Long)
     Dim rng As Range
     Set rng = ws.Range(ws.Cells(r, 1), ws.Cells(r, lastCol))
     rng.Interior.Color = clr
-    rng.Borders.Color = RGB(200, 200, 200)
+    rng.Borders.Color = RGB(158, 158, 158)
     rng.Borders.Weight = xlThin
 End Sub
 
