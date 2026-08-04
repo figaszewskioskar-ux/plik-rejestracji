@@ -161,13 +161,18 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
 
     f_red = fmt(bg_color="#FFC7CE", font_color="#9C0006")
     f_amber = fmt(bg_color="#FFEB9C", font_color="#9C6500")
-    f_text_red = fmt(bg_color="#FFC7CE")
-    f_date_red = fmt(bg_color="#FFC7CE", num_format="yyyy-mm-dd")
-    f_int_red = fmt(bg_color="#FFC7CE", num_format="0", align="center")
+    B = {"border": 1, "border_color": "#C8C8C8"}
+    f_text_red = fmt(bg_color="#FFC7CE", **B)
+    f_date_red = fmt(bg_color="#FFC7CE", num_format="yyyy-mm-dd", **B)
+    f_int_red = fmt(bg_color="#FFC7CE", num_format="0", align="center", **B)
     # żółte wiersze = pojazdy w rejestracji (konwencja z pliku źródłowego)
-    f_text_y = fmt(bg_color="#FFF59D")
-    f_date_y = fmt(bg_color="#FFF59D", num_format="yyyy-mm-dd")
-    f_int_y = fmt(bg_color="#FFF59D", num_format="0", align="center")
+    f_text_y = fmt(bg_color="#FFF9C4", **B)
+    f_date_y = fmt(bg_color="#FFF9C4", num_format="yyyy-mm-dd", **B)
+    f_int_y = fmt(bg_color="#FFF9C4", num_format="0", align="center", **B)
+    # zielone wiersze = pojazdy zarejestrowane (konwencja z pliku źródłowego)
+    f_text_g = fmt(bg_color="#C6EFCE", **B)
+    f_date_g = fmt(bg_color="#C6EFCE", num_format="yyyy-mm-dd", **B)
+    f_int_g = fmt(bg_color="#C6EFCE", num_format="0", align="center", **B)
     f_import = fmt(bg_color="#FFFDE7", border=1, border_color="#E0D9A0")
     f_import_date = fmt(bg_color="#FFFDE7", border=1, border_color="#E0D9A0",
                         num_format="yyyy-mm-dd")
@@ -254,7 +259,7 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
     ws.set_tab_color("#F4A100")
     headers = ["Marka", "Model", "VIN", "Dealer", "Współwłaściciel", "Urząd",
                "Data złożenia", "Dni od złożenia", "Uwagi"]
-    widths = [13, 15, 21, 15, 15, 14, 13, 13, 30]
+    widths = [14, 20, 23, 17, 17, 15, 14, 14, 32]
     colfmts = [f_text, f_text, f_text, f_text, f_text, f_text, f_date, f_int, f_text]
     for c, (w, cf) in enumerate(zip(widths, colfmts)):
         ws.set_column(c, c, w, cf)
@@ -351,7 +356,7 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
     ws.set_tab_color("#F9A825")
     ihdr = ["Marka", "Model", "VIN", "Dealer", "Współwłaściciel", "Urząd",
             "Data złożenia", "Uwagi"]
-    iw = [13, 18, 21, 15, 15, 14, 13, 30]
+    iw = [14, 20, 23, 17, 17, 15, 14, 32]
     for c, w in enumerate(iw):
         ws.set_column(c, c, w)
     ws.set_column(8, 8, 2)
@@ -393,7 +398,7 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
     zhdr = ["Marka", "Model", "VIN", "Nr rejestracyjny", "Dealer", "Urząd",
             "Data złożenia", "Data rejestracji", "Czas rejestracji (dni)",
             "Uwagi"]
-    zw = [13, 15, 21, 16, 15, 14, 13, 14, 14, 28]
+    zw = [14, 20, 23, 17, 17, 15, 14, 15, 15, 32]
     zfmts = [f_text, f_text, f_text, f_text, f_text, f_text, f_date, f_date,
              f_int, f_text]
     for c, (w, cf) in enumerate(zip(zw, zfmts)):
@@ -435,14 +440,20 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
         for c, v in ((0, marka), (1, model), (2, vin), (3, nrrej),
                      (4, dealer), (5, urzad), (9, uwagi)):
             if v:
-                ws.write_string(r, c, v, f_text)
+                ws.write_string(r, c, v, f_text_g)
+            else:
+                ws.write_blank(r, c, None, f_text_g)
         if dzl is not None:
-            ws.write_datetime(r, 6, dzl, f_date)
+            ws.write_datetime(r, 6, dzl, f_date_g)
+        else:
+            ws.write_blank(r, 6, None, f_date_g)
         if datarej is not None:
-            ws.write_datetime(r, 7, datarej, f_date)
+            ws.write_datetime(r, 7, datarej, f_date_g)
+        else:
+            ws.write_blank(r, 7, None, f_date_g)
         ws.write_formula(
             r, 8, '=IF(OR($G%d="",$H%d=""),"",$H%d-$G%d)'
-            % (r + 1, r + 1, r + 1, r + 1), f_int)
+            % (r + 1, r + 1, r + 1, r + 1), f_int_g)
         r += 1
     zlast = r
 
@@ -450,9 +461,7 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
     ws.freeze_panes(HDR_ROW, 0)
     ws.conditional_format(DATA_ROW - 1, 2, LAST - 1, 2,
                           {"type": "duplicate", "format": f_red})
-    ws.conditional_format(DATA_ROW - 1, 0, zlast - 1, 9,
-                          {"type": "formula",
-                           "criteria": "=MOD(ROW(),2)=0", "format": f_bandrow})
+
     ws.data_validation(FORM_ROW - 1, 0, FORM_ROW - 1, 0,
                        {"validate": "list", "source": "=Listy!$A$2:$A$%d" % (nl + 1),
                         "show_error": False})

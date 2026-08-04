@@ -35,7 +35,7 @@ def main(out="logo99rent.png", out_small="logo99rent_small.png"):
     R = int(W * 0.16)             # promień koła '9'
     hr = int(R * 0.44)            # promień otworu
     tw = int(R * 0.44)            # szerokość ogona
-    tail = int(R * 1.70)          # długość ogona pod środkiem koła
+    tail = int(R * 1.78)          # długość ogona pod środkiem koła
     cy = int(W * 0.295)
     c1 = int(W * 0.325)
     c2 = c1 + int(R * 1.82)       # lekkie nachodzenie na pierwszą '9'
@@ -48,10 +48,10 @@ def main(out="logo99rent.png", out_small="logo99rent_small.png"):
     hole(d, c2, cy, hr)
 
     # RENT — bardzo gruby napis, litery rozstrzelone na szerokość dziewiątek
-    f = font(int(W * 0.21))
+    f = font(int(W * 0.225))
     letters = "RENT"
     widths = [d.textlength(ch, font=f) for ch in letters]
-    span = W * 0.66
+    span = W * 0.64
     gap_l = (span - sum(widths)) / (len(letters) - 1)
     x = (W - span) / 2
     y = int(W * 0.815)

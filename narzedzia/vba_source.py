@@ -60,9 +60,22 @@ Private Function SafeDate(v As Variant, fallback As Date) As Date
     End If
 End Function
 
+Private Sub PaintRow(ws As Worksheet, r As Long, lastCol As Long, clr As Long)
+    Dim rng As Range
+    Set rng = ws.Range(ws.Cells(r, 1), ws.Cells(r, lastCol))
+    rng.Interior.Color = clr
+    rng.Borders.Color = RGB(200, 200, 200)
+    rng.Borders.Weight = xlThin
+End Sub
+
 Private Sub PaintYellow(ws As Worksheet, r As Long)
     ' Wiersz oczekujacy na rejestracje = zolty (konwencja z pliku zrodlowego)
-    ws.Range(ws.Cells(r, 1), ws.Cells(r, 9)).Interior.Color = RGB(255, 245, 157)
+    PaintRow ws, r, 9, RGB(255, 249, 196)
+End Sub
+
+Private Sub PaintGreen(ws As Worksheet, r As Long)
+    ' Wiersz zarejestrowany = zielony (konwencja z pliku zrodlowego)
+    PaintRow ws, r, 10, RGB(198, 239, 206)
 End Sub
 
 ' ---------------------------------------------------------------------
@@ -145,6 +158,7 @@ Sub DodajZarejestrowany()
         ",$H" & r & "=" & Chr(34) & Chr(34) & ")," & Chr(34) & Chr(34) & _
         ",$H" & r & "-$G" & r & ")"
     ws.Cells(r, 10).Value = ws.Cells(ROW_FORM, 10).Value        ' Uwagi
+    PaintGreen ws, r
 
     ws.Range(ws.Cells(ROW_FORM, 1), ws.Cells(ROW_FORM, 8)).ClearContents
     ws.Cells(ROW_FORM, 10).ClearContents
@@ -289,6 +303,7 @@ Sub ZarejestrujZaznaczone()
                 ",$H" & rz & "=" & Chr(34) & Chr(34) & ")," & Chr(34) & Chr(34) & _
                 ",$H" & rz & "-$G" & rz & ")"
             wsZ.Cells(rz, 10).Value = wsW.Cells(rw, 9).Value     ' Uwagi
+            PaintGreen wsZ, rz
             n = n + 1
         End If
         wsW.Rows(rw).Delete Shift:=xlUp
@@ -374,6 +389,7 @@ Sub ZarejestrujPojazd()
         ",$H" & rz & "=" & Chr(34) & Chr(34) & ")," & Chr(34) & Chr(34) & _
         ",$H" & rz & "-$G" & rz & ")"
     wsZ.Cells(rz, 10).Value = wsW.Cells(rw, 9).Value            ' Uwagi
+    PaintGreen wsZ, rz
 
     wsW.Rows(rw).Delete Shift:=xlUp
 
