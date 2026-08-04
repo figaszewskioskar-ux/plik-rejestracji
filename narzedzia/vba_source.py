@@ -39,6 +39,10 @@ Option Explicit
 Private Const ROW_FORM As Long = 5      ' wiersz formularza
 Private Const ROW_HDR As Long = 8       ' wiersz naglowka tabel
 
+' zegar na PULPICIE (deklaracje musza byc na gorze modulu)
+Private nextTick As Date
+Private tickArmed As Boolean
+
 Private Function LastRow(ws As Worksheet) As Long
     ' Ostatni uzyty wiersz w kolumnach A:J (niektore pojazdy nie maja
     ' jeszcze VIN, wiec nie mozna polegac na jednej kolumnie).
@@ -353,9 +357,6 @@ End Sub
 ' Zegar na PULPICIE: data i godzina z sekundami, odswiezany co 30 s
 ' (czestszy zapis czyscilby schowek i przerywal prace w arkuszach).
 ' ---------------------------------------------------------------------
-Private nextTick As Date
-Private tickArmed As Boolean
-
 Sub StartZegar()
     On Error Resume Next
     ThisWorkbook.Worksheets("PULPIT").Range("J2").Value = Now
