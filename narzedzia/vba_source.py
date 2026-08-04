@@ -329,7 +329,7 @@ End Sub
 
 
 ' ---------------------------------------------------------------------
-' Zegar na PULPICIE: komorka z data i godzina odswiezana co minute.
+' Zegar na PULPICIE: data i godzina z sekundami, odswiezana co sekunde.
 ' ---------------------------------------------------------------------
 Private nextTick As Date
 Private tickArmed As Boolean
@@ -337,7 +337,7 @@ Private tickArmed As Boolean
 Sub StartZegar()
     On Error Resume Next
     ThisWorkbook.Worksheets("PULPIT").Range("J2").Value = Now
-    nextTick = Now + TimeSerial(0, 1, 0)
+    nextTick = Now + TimeSerial(0, 0, 1)
     Application.OnTime nextTick, "TykZegara"
     tickArmed = True
 End Sub
@@ -345,7 +345,7 @@ End Sub
 Sub TykZegara()
     On Error Resume Next
     ThisWorkbook.Worksheets("PULPIT").Range("J2").Value = Now
-    nextTick = Now + TimeSerial(0, 1, 0)
+    nextTick = Now + TimeSerial(0, 0, 1)
     Application.OnTime nextTick, "TykZegara"
     tickArmed = True
 End Sub

@@ -204,7 +204,7 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
     ws.set_column("D:K", 12)
     header_band(ws, "  RAPORT REJESTRACJI POJAZDÓW", 11)
     f_clock = fmt(bold=True, font_size=12, font_color=DARK, align="right",
-                  num_format="yyyy-mm-dd  hh:mm")
+                  num_format="yyyy-mm-dd  hh:mm:ss")
     ws.write(1, 8, "stan na:", fmt(font_size=9, font_color="#7F7F7F",
                                    align="right", valign="vcenter"))
     ws.merge_range(1, 9, 1, 10, "", f_clock)
