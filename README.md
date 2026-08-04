@@ -14,12 +14,13 @@ i logo 99rent.
 ## Arkusze
 
 1. **PULPIT** — logo 99rent, wskaźniki (KPI), przyciski nawigacji i instrukcja.
-2. **W rejestracji** — pojazdy oczekujące (934 szt. z pliku źródłowego).
+2. **W rejestracji** — pojazdy oczekujące — wiersze żółte (złożone, 60 szt.) i czerwone (7 szt., zachowane czerwone podświetlenie) z pliku źródłowego.
    Formularz w wierszu 5 + przycisk **DODAJ WNIOSEK**. Kolumna
    *Dni od złożenia* liczy się automatycznie (`=DZIŚ()-data złożenia`)
    i podświetla zaległości (pomarańczowy > 10 dni, czerwony > 21 dni).
-3. **Zarejestrowane** — nowy katalog pojazdów zarejestrowanych (zasilony 17
-   pojazdami z oryginalnego arkusza). Formularz + przycisk
+3. **Zarejestrowane** — nowy katalog pojazdów zarejestrowanych — wiersze zielone
+   (odebrane, 867 szt.); 17 z nich ma nr rejestracyjny i datę z arkusza
+   źródłowego Arkusz2 (połączone po VIN). Formularz + przycisk
    **DODAJ DO KATALOGU** dla pojazdów zarejestrowanych wcześniej.
    Kolumna *Czas rejestracji (dni)* = data rejestracji − data złożenia wniosku.
 4. **Nr rejestracyjny** — zakładka nadawania numeru: wybierasz VIN z listy,

@@ -19,20 +19,59 @@ HDR_ROW = 8    # 1-indexed sheet row of table headers
 DATA_ROW = 9   # first data row
 
 
+GREEN_FILLS = {"FF00B050", "FF92D050"}   # odebrane / zarejestrowane
+YELLOW_FILLS = {"FFFFFF00"}              # złożone, w rejestracji
+RED_FILLS = {"FFFF0000"}                 # oznaczone na czerwono w źródle
+
+
+def _row_fill(cells):
+    fills = []
+    for c in cells:
+        f = c.fill
+        rgb = None
+        if f is not None and f.patternType == "solid":
+            v = f.fgColor.rgb if f.fgColor is not None else None
+            if isinstance(v, str):
+                rgb = v
+        fills.append(rgb)
+    return collections.Counter(fills).most_common(1)[0][0]
+
+
 def load_data():
     wb = openpyxl.load_workbook(SOURCE, data_only=True)
     def s(v):
         return str(v).strip() if v is not None and str(v).strip() else None
-    wrej = []
-    for r in wb["Arkusz1"].iter_rows(min_row=2, values_only=True):
-        row = (s(r[0]), s(r[1]), s(r[2]), s(r[3]), s(r[4]), s(r[5]), r[6], s(r[7]))
-        if any(row[:7]):
-            wrej.append(row)
-    zarej = []
+
+    # Arkusz2: szczegóły rejestracji (nr rej, data rej, cena) wg VIN
+    detail = {}
     for r in wb["Arkusz2"].iter_rows(min_row=2, values_only=True):
         # Marka, Model, data rej, nr rej, VIN, cena
-        if any(x is not None for x in r):
-            zarej.append((s(r[0]), s(r[1]), s(r[4]), s(r[3]), r[2], r[5]))
+        if s(r[4]):
+            detail[s(r[4])] = (s(r[3]), r[2], r[5])
+
+    # Arkusz1: kolor wiersza decyduje o arkuszu docelowym
+    wrej = []    # (marka, model, vin, dealer, wsp, urzad, dzl, uwagi, is_red)
+    zarej = []   # (marka, model, vin, nrrej, dealer, urzad, dzl, datarej, cena, uwagi)
+    for cells in wb["Arkusz1"].iter_rows(min_row=2):
+        r = [c.value for c in cells[:8]]
+        row = (s(r[0]), s(r[1]), s(r[2]), s(r[3]), s(r[4]), s(r[5]), r[6], s(r[7]))
+        if not any(row[:7]):
+            continue
+        fill = _row_fill(cells[:7])
+        if fill in GREEN_FILLS:
+            nrrej, datarej, cena = detail.get(row[2], (None, None, None))
+            zarej.append((row[0], row[1], row[2], nrrej, row[3], row[5],
+                          row[6], datarej, cena, row[7]))
+        else:
+            wrej.append(row + (fill in RED_FILLS,))
+
+    # Arkusz2 VIN-y spoza zielonych wierszy (nie powinno ich być, ale nie gubimy)
+    seen = {z[2] for z in zarej}
+    for vin, (nrrej, datarej, cena) in detail.items():
+        if vin not in seen:
+            zarej.append((None, None, vin, nrrej, None, None, None,
+                          datarej, cena, None))
+
     pilne = []
     for r in wb["Arkusz4"].iter_rows(min_row=4, max_col=2, values_only=True):
         if r[0] or r[1]:
@@ -57,7 +96,7 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
           logo_small="logo99rent_small.png"):
     wrej, zarej, pilne = load_data()
     marki = canonical([r[0] for r in wrej] + [z[0] for z in zarej])
-    dealerzy = canonical([r[3] for r in wrej])
+    dealerzy = canonical([r[3] for r in wrej] + [z[4] for z in zarej])
     wspolwl = canonical([r[4] for r in wrej])
 
     wb = xlsxwriter.Workbook(path, {"remove_timezone": True})
@@ -109,6 +148,9 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
 
     f_red = fmt(bg_color="#FFC7CE", font_color="#9C0006")
     f_amber = fmt(bg_color="#FFEB9C", font_color="#9C6500")
+    f_text_red = fmt(bg_color="#FFC7CE")
+    f_date_red = fmt(bg_color="#FFC7CE", num_format="yyyy-mm-dd")
+    f_int_red = fmt(bg_color="#FFC7CE", num_format="0", align="center")
     f_bandrow = fmt(bg_color=BAND)
 
     def header_band(ws, title, ncols):
@@ -223,15 +265,21 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
 
     r = DATA_ROW - 1  # 0-indexed
     for row in wrej:
-        marka, model, vin, dealer, wsp, urzad, dzl, uwagi = row
+        marka, model, vin, dealer, wsp, urzad, dzl, uwagi, is_red = row
+        ftxt = f_text_red if is_red else None
         for c, v in ((0, marka), (1, model), (2, vin), (3, dealer),
                      (4, wsp), (5, urzad), (8, uwagi)):
             if v is not None:
-                ws.write_string(r, c, v, colfmts[c])
+                ws.write_string(r, c, v, ftxt or colfmts[c])
+            elif is_red:
+                ws.write_blank(r, c, None, f_text_red)
         if dzl is not None:
-            ws.write_datetime(r, 6, dzl, f_date)
+            ws.write_datetime(r, 6, dzl, f_date_red if is_red else f_date)
+        elif is_red:
+            ws.write_blank(r, 6, None, f_date_red)
         ws.write_formula(
-            r, 7, '=IF($G%d="","",TODAY()-$G%d)' % (r + 1, r + 1), f_int)
+            r, 7, '=IF($G%d="","",TODAY()-$G%d)' % (r + 1, r + 1),
+            f_int_red if is_red else f_int)
         r += 1
     last_data = r  # 0-indexed row after last
 
@@ -275,23 +323,23 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
     ws.set_tab_color("#2E7D32")
     zhdr = ["Marka", "Model", "VIN", "Nr rejestracyjny", "Dealer", "Urząd",
             "Data złożenia", "Data rejestracji", "Czas rejestracji (dni)",
-            "Cena zakupu netto"]
-    zw = [13, 15, 21, 16, 15, 14, 13, 14, 14, 16]
+            "Cena zakupu netto", "Uwagi"]
+    zw = [13, 15, 21, 16, 15, 14, 13, 14, 14, 16, 26]
     zfmts = [f_text, f_text, f_text, f_text, f_text, f_text, f_date, f_date,
-             f_int, f_money]
+             f_int, f_money, f_text]
     for c, (w, cf) in enumerate(zip(zw, zfmts)):
         ws.set_column(c, c, w, cf)
-    ws.set_column(10, 10, 2)
-    ws.set_column(11, 11, 24)
-    header_band(ws, "  KATALOG POJAZDÓW ZAREJESTROWANYCH", 10)
-    nav_button(ws, 11)
+    ws.set_column(11, 11, 2)
+    ws.set_column(12, 12, 24)
+    header_band(ws, "  KATALOG POJAZDÓW ZAREJESTROWANYCH", 11)
+    nav_button(ws, 12)
 
-    ws.merge_range(2, 0, 2, 9,
+    ws.merge_range(2, 0, 2, 10,
                    "FORMULARZ — POJAZD JUŻ ZAREJESTROWANY:  wypełnij żółte pola i kliknij DODAJ DO KATALOGU",
                    f_form_title)
     for c, h in enumerate(zhdr):
         ws.write(3, c, h, f_form_label)
-    for c in range(10):
+    for c in range(11):
         if c in (6, 7):
             ws.write_blank(FORM_ROW - 1, c, None, f_input_date)
         elif c == 8:
@@ -300,7 +348,7 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
             ws.write_blank(FORM_ROW - 1, c, None, f_input)
     ws.set_row(FORM_ROW - 1, 22)
     if with_vba:
-        ws.insert_button(3, 11, {"macro": "DodajZarejestrowany",
+        ws.insert_button(3, 12, {"macro": "DodajZarejestrowany",
                                  "caption": "DODAJ DO KATALOGU",
                                  "width": 165, "height": 40})
 
@@ -314,11 +362,13 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
         {"author": "99rent"})
 
     r = DATA_ROW - 1
-    for marka, model, vin, nrrej, datarej, cena in zarej:
-        if marka: ws.write_string(r, 0, marka, f_text)
-        if model: ws.write_string(r, 1, model, f_text)
-        if vin: ws.write_string(r, 2, vin, f_text)
-        if nrrej: ws.write_string(r, 3, nrrej, f_text)
+    for marka, model, vin, nrrej, dealer, urzad, dzl, datarej, cena, uwagi in zarej:
+        for c, v in ((0, marka), (1, model), (2, vin), (3, nrrej),
+                     (4, dealer), (5, urzad), (10, uwagi)):
+            if v:
+                ws.write_string(r, c, v, f_text)
+        if dzl is not None:
+            ws.write_datetime(r, 6, dzl, f_date)
         if datarej is not None:
             ws.write_datetime(r, 7, datarej, f_date)
         ws.write_formula(
@@ -329,11 +379,11 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
         r += 1
     zlast = r
 
-    ws.autofilter(HDR_ROW - 1, 0, LAST - 1, 9)
+    ws.autofilter(HDR_ROW - 1, 0, LAST - 1, 10)
     ws.freeze_panes(HDR_ROW, 0)
     ws.conditional_format(DATA_ROW - 1, 2, LAST - 1, 2,
                           {"type": "duplicate", "format": f_red})
-    ws.conditional_format(DATA_ROW - 1, 0, zlast - 1, 9,
+    ws.conditional_format(DATA_ROW - 1, 0, zlast - 1, 10,
                           {"type": "formula",
                            "criteria": "=MOD(ROW(),2)=0", "format": f_bandrow})
     ws.data_validation(FORM_ROW - 1, 0, FORM_ROW - 1, 0,
