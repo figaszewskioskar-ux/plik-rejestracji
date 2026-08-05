@@ -806,15 +806,15 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
     breakdown(4, "WG URZĘDU", URZEDY_CANON, "F", "F")
     breakdown(8, "WG MARKI", marki, "A", "A")
 
-    # WG WSPÓŁWŁAŚCICIELA (FINANSUJĄCEGO) — kolumna E tylko w rejestrze
-    col0 = 16
-    ws.set_column(16, 16, 20)
-    ws.set_column(17, 17, 13)
-    ws.merge_range(2, col0, 2, col0 + 1,
-                   "  WG WSPÓŁWŁAŚCICIELA (FINANSUJĄCEGO)", f_sec_band)
-    ws.write(3, col0, "Nazwa", f_hdr)
-    ws.write(3, col0 + 1, "W rejestracji", f_hdr)
-    rr_w = 4
+    # WG WSPÓŁWŁAŚCICIELA (FINANSUJĄCEGO) — pod tabelą WG URZĘDU
+    col0 = 4
+    rw0 = 14
+    ws.merge_range(rw0, col0, rw0, col0 + 1,
+                   "  WG WSPÓŁWŁAŚCICIELA", f_sec_band)
+    ws.set_row(rw0, 22)
+    ws.write(rw0 + 1, col0, "Nazwa", f_hdr)
+    ws.write(rw0 + 1, col0 + 1, "W rejestracji", f_hdr)
+    rr_w = rw0 + 2
     for it in wspolwl:
         ws.write(rr_w, col0, it, f_tbl_text)
         ws.write_formula(
