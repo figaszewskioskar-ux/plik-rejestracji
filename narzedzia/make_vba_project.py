@@ -3,7 +3,7 @@
 from make_vba_bin import make_vba_project
 from vba_source import THISWORKBOOK, MODULE1, SHEET_MODULE_TEMPLATE
 
-N_SHEETS = 9  # + zakladka Archiwum 2026-07; PULPIT, W rejestracji, Import hurtowy, Zarejestrowane,
+N_SHEETS = 11  # + zakladka Archiwum 2026-07; PULPIT, W rejestracji, Import hurtowy, Zarejestrowane,
               # PODSUMOWANIE, Pilne, Listy
 
 def main(out="vbaProject.bin"):

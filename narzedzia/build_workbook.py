@@ -851,6 +851,165 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
         r += 1
 
     # ================================================================= LISTY
+    # ================================================================ URZĘDY
+    ws = wb.add_worksheet("URZĘDY")
+    sheet_order.append(ws)
+    ws.set_tab_color("#6A1B9A")
+    ws.hide_gridlines(2)
+    for c, w in enumerate([22, 26, 30, 18, 18, 34]):
+        ws.set_column(c, c, w)
+    header_band(ws, "  URZĘDY I WSPÓŁWŁAŚCICIELE — ADRESY", 6)
+    nav_button(ws, 5)
+
+    f_uhdr = fmt(bold=True, bg_color="#FFF200", border=1)
+    f_ucell = fmt(bg_color="white", border=1, border_color="#C8C8C8")
+    f_ured = fmt(bold=True, font_color="white", bg_color=RED, border=1,
+                 align="center")
+    f_uwarn = fmt(bold=True, font_color="white", bg_color=RED, border=1)
+
+    r = 2
+    ws.write(r, 0, "Urzędy", f_uhdr)
+    ws.write(r, 1, "KOD POCZTOWY", f_uhdr)
+    ws.write(r, 2, "ADRES", f_uhdr)
+    ws.write(r, 3, "CO POTRZEBA", f_uhdr)
+    ws.write(r, 4, "CO POTRZEBA", f_uhdr)
+    ws.write(r, 5, "ZAWSZE", f_ured)
+    r += 1
+    urzedy_info = [
+        ("BEMOWO", "01-381 Warszawa", "ul. Powstańców Śląskich 70", "", ""),
+        ("WILANÓW", "02-797 Warszawa", "ul. Franciszka Klimczaka 2", "", ""),
+        ("ŚRÓDMIEŚCIE", "00-412 Warszawa", "ul. Leona Kruczkowskiego 2",
+         "opłaty rozbite", ""),
+        ("WAWER", "04-713 Warszawa", "ul. Żegańska 1", "", ""),
+        ("OCHOTA", "02-021 Warszawa", "ul. Grójecka 17a", "daty doki",
+         "KOPIE DOKI"),
+        ("MOKOTÓW", "02-517 Warszawa", "ul. Rakowiecka 25/27", "", ""),
+    ]
+    for naz, kod, adr, p1, p2 in urzedy_info:
+        ws.write(r, 0, naz, f_ucell)
+        ws.write(r, 1, kod, f_ucell)
+        ws.write(r, 2, adr, f_ucell)
+        ws.write(r, 3, p1, f_uwarn if p1 else f_ucell)
+        ws.write(r, 4, p2, f_uwarn if p2 else f_ucell)
+        ws.write(r, 5, "DATA FV i UMOWA PRZEWŁASZCZENIA", f_ured)
+        r += 1
+
+    r += 2
+    ws.write(r, 0, "WSPÓŁWŁ (FINANSUJĄCY)", f_uhdr)
+    ws.write(r, 1, "ADRES", f_uhdr)
+    ws.write(r, 2, "KOD", f_uhdr)
+    ws.write(r, 3, "REGON", f_uhdr)
+    r += 1
+    for naz, adr, kod, regon in [
+            ("BMW Financial Services Polska Sp. z o.o.", "ul. Wołoska 22A",
+             "02-675 Warszawa", "REGON 143424261"),
+            ("MERCEDES-BENZ LEASING POLSKA Sp. z o.o.",
+             "ul. Gottlieba Daimlera 1", "02-460 Warszawa", "REGON 012213933"),
+            ("PKO LEASING SPÓŁKA AKCYJNA", "ul. Świętokrzyska 36",
+             "00-116 Warszawa", "REGON 472191767"),
+            ("VELO LEASING S.A.", "Rondo Ignacego Daszyńskiego 2C",
+             "00-843 Warszawa", "REGON 367715275"),
+            ("M Leasing Sp. z o.o.", "ul. Prosta 18",
+             "00-850 Warszawa", "REGON 012527809")]:
+        ws.write(r, 0, naz, f_ucell)
+        ws.write(r, 1, adr, f_ucell)
+        ws.write(r, 2, kod, f_ucell)
+        ws.write(r, 3, regon, f_ucell)
+        r += 1
+
+    r += 2
+    ws.write(r, 0, "Urzędy (kody wyróżników)", f_uhdr)
+    ws.write(r, 1, "ORGAN", f_uhdr)
+    ws.write(r, 2, "ADRES", f_uhdr)
+    ws.write(r, 3, "KOD POCZTOWY", f_uhdr)
+    r += 1
+    for naz, org, adr, kod in [
+            ("BEMOWO (WB)", "Prezydent m.st. Warszawy",
+             "ul. Powstańców Śląskich 70", "01-381 Warszawa"),
+            ("WILANÓW (WW)", "Prezydent m.st. Warszawy",
+             "ul. Franciszka Klimczaka 2", "02-797 Warszawa"),
+            ("ŚRÓDMIEŚCIE (WI)", "Prezydent m.st. Warszawy",
+             "ul. Leona Kruczkowskiego 2", "00-412 Warszawa"),
+            ("WAWER (WT)", "Prezydent m.st. Warszawy",
+             "ul. Żegańska 1", "04-713 Warszawa"),
+            ("BIAŁOŁĘKA (WA)", "Prezydent m.st. Warszawy",
+             "ul. Modlińska 197", "03-122 Warszawa"),
+            ("WOLA (WY)", "Prezydent m.st. Warszawy",
+             "ul. Solidarności 90", "01-003 Warszawa"),
+            ("MOKOTÓW (WE)", "Prezydent m.st. Warszawy",
+             "ul. Rakowiecka 25/27", "02-517 Warszawa"),
+            ("URSYNÓW (WN)", "Prezydent m.st. Warszawy",
+             "al. Komisji Edukacji Narodowej 61", "02-777 Warszawa"),
+            ("LEGIONOWO (WL)", "Starosta Legionowski",
+             "ul. gen. Władysława Sikorskiego 11", "05-119 Legionowo"),
+            ("GDYNIA (GA)", "Prezydent Miasta Gdyni",
+             "al. Marszałka Piłsudskiego 52/54", "81-382 Gdynia"),
+            ("NOWY DWÓR MAZ (WND)", "Starosta Nowodworski",
+             "ul. Paderewskiego 1B", "05-100 Nowy Dwór Mazowiecki")]:
+        ws.write(r, 0, naz, f_ucell)
+        ws.write(r, 1, org, f_ucell)
+        ws.write(r, 2, adr, f_ucell)
+        ws.write(r, 3, kod, f_ucell)
+        r += 1
+
+    # =============================================================== PRZELEWY
+    ws = wb.add_worksheet("PRZELEWY")
+    sheet_order.append(ws)
+    ws.set_tab_color("#00695C")
+    ws.hide_gridlines(2)
+    for c, w in enumerate([16, 20, 42, 14, 42]):
+        ws.set_column(c, c, w)
+    header_band(ws, "  PRZELEWY ZA REJESTRACJĘ — KONTA URZĘDÓW", 5)
+    nav_button(ws, 4)
+
+    ws.write(2, 0, "ADRESACI MAILA Z PROŚBĄ O PRZELEW", f_sec)
+    ws.write(3, 0, "Do:", f_lbl)
+    ws.write(3, 1, "ksiegowosc@99rent.pl", f_ucell)
+    ws.write(3, 2, "e.cyc@99rent.pl", f_ucell)
+    ws.write(4, 0, "Cc:", f_lbl)
+    cc = ["n.jastrzebska@99rent.pl", "d.wroblewski@99rent.pl",
+          "a.kokot@99rent.pl", "m.wieczorek@99rent.pl", "k.pietrzyk@99rent.pl",
+          "r.piestrzynski@99rent.pl", "j.wojtynska@99rent.pl",
+          "flota@99rent.pl", "k.dudek@99rent.pl"]
+    for i, adres in enumerate(cc):
+        ws.write(4 + i // 3, 1 + i % 3, adres, f_ucell)
+
+    ws.write(9, 0, "Przykład tytułu przelewu:", f_lbl)
+    ws.merge_range(9, 1, 9, 4,
+                   "Przelew za rejestrację pojazdów WAWER 5x BMW INCHCAPE "
+                   "+ VIN każdego auta (VIN-y połącz: =POŁĄCZ.TEKSTY(\"; \";1;zakres))",
+                   f_ucell)
+
+    ws.write(11, 0, "KONTA URZĘDÓW", f_sec)
+    ws.write(12, 0, "URZĄD", f_hdr)
+    ws.write(12, 1, "Przelew 1 — rejestracja", f_hdr)
+    ws.write(12, 2, "Konto (rejestracja)", f_hdr)
+    ws.write(12, 3, "Przelew 2 — pełnomocn.", f_hdr)
+    ws.write(12, 4, "Konto (pełnomocnictwa)", f_hdr)
+    ws.set_row(12, 26)
+    KONTO_PELN = "21 1030 1508 0000 0005 5000 0070"
+    przelewy = [
+        ("OCHOTA", "160,00 zł / pojazd", "20 1030 1508 0000 0005 5002 4047"),
+        ("ŚRÓDMIEŚCIE", "160,00 zł / pojazd", "07 1030 1508 0000 0005 5001 0119"),
+        ("WAWER", "160,00 zł / pojazd", "77 1030 1508 0000 0005 5003 2139"),
+        ("BEMOWO", "160,00 zł / pojazd", "50 1030 1508 0000 0005 5000 2167"),
+        ("WILANÓW", "160,00 zł / pojazd", "51 1030 1508 0000 0005 5001 6117"),
+    ]
+    r = 13
+    for urzad, kwota, konto in przelewy:
+        ws.write(r, 0, urzad, fmt(bold=True, bg_color="white", border=1,
+                                  border_color="#C8C8C8"))
+        ws.write(r, 1, kwota, f_ucell)
+        ws.write(r, 2, konto, f_ucell)
+        ws.write(r, 3, "17,00 zł", f_ucell)
+        ws.write(r, 4, KONTO_PELN, f_ucell)
+        r += 1
+    ws.merge_range(r + 1, 0, r + 3, 4,
+                   "W tytule przelewu zbiorczego należy wpisać VIN każdego "
+                   "samochodu. Zawsze poproś o wysłanie potwierdzenia każdego "
+                   "przelewu. Konto przelewu 2 (pełnomocnictwa, 17 zł) jest "
+                   "wspólne dla wszystkich urzędów.", f_instr)
+
     ws = wb.add_worksheet("Listy")
     sheet_order.append(ws)
     for c, (title, vals) in enumerate([
