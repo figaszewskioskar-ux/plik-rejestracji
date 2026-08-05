@@ -56,16 +56,15 @@ Private Function LastRow(ws As Worksheet) As Long
 End Function
 
 Private Function FindVinRow(ws As Worksheet, vin As String) As Long
-    Dim r As Range
-    Set r = ws.Range(ws.Cells(ROW_HDR + 1, 3), ws.Cells(LastRow(ws), 3))
-    Dim c As Range
-    For Each c In r.Cells
-        If UCase(Trim(CStr(c.Value))) = UCase(Trim(vin)) Then
-            FindVinRow = c.Row
-            Exit Function
-        End If
-    Next c
-    FindVinRow = 0
+    ' Szybkie wyszukiwanie VIN (Match zamiast petli po komorkach).
+    Dim wynik As Variant
+    wynik = Application.Match(Trim(vin), _
+        ws.Range(ws.Cells(ROW_HDR + 1, 3), ws.Cells(LastRow(ws), 3)), 0)
+    If IsError(wynik) Then
+        FindVinRow = 0
+    Else
+        FindVinRow = ROW_HDR + CLng(wynik)
+    End If
 End Function
 
 Private Function SafeDate(v As Variant, fallback As Date) As Date
@@ -180,6 +179,114 @@ Sub DodajZarejestrowany()
     ws.Cells(ROW_FORM, 10).ClearContents
     MsgBox "Pojazd " & vin & " dodany do katalogu zarejestrowanych.", _
         vbInformation, "99rent"
+End Sub
+
+' ---------------------------------------------------------------------
+' Przycisk: PRZYWROC DO REJESTRACJI (arkusz "Zarejestrowane")
+' Zaznaczone pojazdy wracaja z katalogu do arkusza W rejestracji
+' (np. omylkowo zarejestrowane). Nr rej i data rejestracji sa usuwane.
+' ---------------------------------------------------------------------
+Sub PrzywrocZaznaczone()
+    Dim krok As String
+    Dim wsW As Worksheet, wsZ As Worksheet
+    Dim obszar As Range, wiersz As Range, rowsToMove As Object, key As Variant
+    Dim rw As Long, rz As Long, n As Long
+    Dim vin As String, arr() As Long, i As Long, j As Long, tmp As Long
+
+    On Error GoTo Blad
+    krok = "start"
+    Set wsW = ThisWorkbook.Worksheets("W rejestracji")
+    Set wsZ = ThisWorkbook.Worksheets("Zarejestrowane")
+
+    If ActiveSheet.Name <> wsZ.Name Then
+        MsgBox "Przejdz do arkusza Zarejestrowane i zaznacz wiersze pojazdow.", _
+            vbExclamation, "99rent"
+        Exit Sub
+    End If
+    If TypeName(Selection) <> "Range" Then
+        MsgBox "Najpierw zaznacz w tabeli wiersze pojazdow do przywrocenia.", _
+            vbExclamation, "99rent"
+        Exit Sub
+    End If
+
+    krok = "zbieranie wierszy"
+    Set rowsToMove = CreateObject("Scripting.Dictionary")
+    For Each obszar In Selection.Areas
+        For Each wiersz In obszar.Rows
+            rw = wiersz.Row
+            If rw > ROW_HDR And rw <= LastRow(wsZ) Then
+                vin = Trim(CStr(wsZ.Cells(rw, 3).Value))
+                If vin <> "" And Not rowsToMove.Exists(rw) Then
+                    rowsToMove.Add rw, vin
+                End If
+            End If
+        Next wiersz
+    Next obszar
+
+    If rowsToMove.Count = 0 Then
+        MsgBox "Zaznacz co najmniej jeden wiersz pojazdu (z VIN) w tabeli.", _
+            vbExclamation, "99rent"
+        Exit Sub
+    End If
+
+    StopZegar
+    If MsgBox("Przywrocic " & rowsToMove.Count & " pojazd(y) do arkusza " & _
+        "W REJESTRACJI?" & vbCrLf & "Nr rejestracyjny i data rejestracji " & _
+        "zostana usuniete.", vbYesNo + vbQuestion, "99rent") <> vbYes Then
+        StartZegar
+        Exit Sub
+    End If
+
+    ReDim arr(0 To rowsToMove.Count - 1)
+    i = 0
+    For Each key In rowsToMove.Keys
+        arr(i) = CLng(key)
+        i = i + 1
+    Next key
+    For i = 0 To UBound(arr) - 1
+        For j = i + 1 To UBound(arr)
+            If arr(j) > arr(i) Then
+                tmp = arr(i): arr(i) = arr(j): arr(j) = tmp
+            End If
+        Next j
+    Next i
+
+    Application.ScreenUpdating = False
+    n = 0
+    For i = 0 To UBound(arr)
+        rw = arr(i)
+        krok = "przywracanie wiersza " & rw
+        vin = Trim(CStr(wsZ.Cells(rw, 3).Value))
+        If FindVinRow(wsW, vin) = 0 Then
+            rz = LastRow(wsW) + 1
+            wsW.Cells(rz, 1).Value = wsZ.Cells(rw, 1).Value      ' Marka
+            wsW.Cells(rz, 2).Value = wsZ.Cells(rw, 2).Value      ' Model
+            wsW.Cells(rz, 3).Value = vin                          ' VIN
+            wsW.Cells(rz, 4).Value = wsZ.Cells(rw, 5).Value      ' Dealer
+            wsW.Cells(rz, 6).Value = wsZ.Cells(rw, 6).Value      ' Urzad
+            If IsDate(wsZ.Cells(rw, 7).Value) Then
+                wsW.Cells(rz, 7).Value = CDate(wsZ.Cells(rw, 7).Value)
+                wsW.Cells(rz, 7).NumberFormat = "yyyy-mm-dd"
+            End If
+            wsW.Cells(rz, 8).Formula = "=IF($G" & rz & "=" & Chr(34) & Chr(34) & _
+                "," & Chr(34) & Chr(34) & ",TODAY()-$G" & rz & ")"
+            wsW.Cells(rz, 9).Value = wsZ.Cells(rw, 10).Value     ' Uwagi
+            PaintYellow wsW, rz
+            n = n + 1
+        End If
+        wsZ.Rows(rw).Delete Shift:=xlUp
+    Next i
+    Application.ScreenUpdating = True
+
+    MsgBox "Przywrocono do rejestracji: " & n & " pojazd(y).", _
+        vbInformation, "99rent"
+    StartZegar
+    Exit Sub
+Blad:
+    Application.ScreenUpdating = True
+    MsgBox "Blad przywracania (etap: " & krok & "):" & vbCrLf & _
+        Err.Number & " - " & Err.Description, vbCritical, "99rent"
+    StartZegar
 End Sub
 
 ' ---------------------------------------------------------------------

@@ -238,6 +238,7 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
     f_band_sub = fmt(bg_color=RED, font_color="white", font_size=10,
                      align="right", valign="vcenter")
     f_hdr = fmt(bold=True, font_color="white", bg_color=DARK, border=1,
+                bottom=2, bottom_color="#E30613",
                 align="center", valign="vcenter", text_wrap=True)
     f_form_label = fmt(font_size=8, font_color="#7F7F7F", bold=True,
                        align="center")
@@ -375,7 +376,8 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
         "3.  IMPORT HURTOWY — wklejasz 10, 20, 30… pojazdów naraz (z VIN-ami) i jednym kliknięciem dodajesz wszystkie do rejestru.\n"
         "4.  Po odebraniu rejestracji: zaznacz pojazdy w W REJESTRACJI i kliknij ZAREJESTRUJ ZAZNACZONE — przechodzą do katalogu "
         "ZAREJESTROWANE z licznikiem dni. Numer rejestracyjny wpisujesz wprost w kolumnie „Nr rejestracyjny” katalogu.\n"
-        "5.  ZAREJESTROWANE — pojazd zarejestrowany wcześniej (poza rejestrem) dodasz bezpośrednio przyciskiem DODAJ DO KATALOGU.\n"
+        "5.  ZAREJESTROWANE — pojazd zarejestrowany wcześniej (poza rejestrem) dodasz bezpośrednio przyciskiem DODAJ DO KATALOGU; "
+        "pomyłkę cofniesz przyciskiem PRZYWRÓĆ DO REJESTRACJI (zaznacz wiersze).\n"
         "6.  PODSUMOWANIE — statystyki wg urzędu, dealera i marki oraz czasy rejestracji liczą się automatycznie.\n"
         "7.  ARCHIWUM — na początku każdego miesiąca plik proponuje przeniesienie pojazdów zarejestrowanych w starych miesiącach "
         "do zakładki „Archiwum RRRR-MM” na dole pliku (przycisk ARCHIWIZUJ STARE MIES. w katalogu robi to na żądanie).\n"
@@ -569,6 +571,12 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
         ws.insert_button(6, 11, {"macro": "ArchiwizujStareMiesiace",
                                  "caption": "ARCHIWIZUJ STARE MIES.",
                                  "width": 165, "height": 34})
+        ws.insert_button(13, 11, {"macro": "PrzywrocZaznaczone",
+                                  "caption": "◀ PRZYWRÓĆ DO REJESTRACJI",
+                                  "width": 165, "height": 34})
+        ws.write(16, 11, "Zaznacz wiersze i kliknij, aby cofnąć pojazdy "
+                 "do arkusza W REJESTRACJI (nr rej i data rejestracji "
+                 "zostaną usunięte).", f_note)
         ws.write(9, 11, "Przenosi pojazdy zarejestrowane w poprzednich "
                  "miesiącach do zakładki „Archiwum RRRR-MM” na dole pliku. "
                  "Przy pierwszym otwarciu w nowym miesiącu plik sam o to "
