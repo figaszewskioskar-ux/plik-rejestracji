@@ -1010,6 +1010,43 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
                    "przelewu. Konto przelewu 2 (pełnomocnictwa, 17 zł) jest "
                    "wspólne dla wszystkich urzędów.", f_instr)
 
+    # gotowe teksty maili do kopiuj-wklej (1:1 z dokumentu PRZELEWY.docx)
+    f_copy = fmt(bg_color="white", border=1, border_color="#C8C8C8",
+                 text_wrap=True, valign="top")
+    teksty = [
+        ("OCHOTA", "Cześć,", "wpisać VIN każdego samochodu",
+         "20 1030 1508 0000 0005 5002 4047", "Ochota"),
+        ("ŚRÓDMIEŚCIE", "Hej,", "wpisać VIN każdego samochodu",
+         "07 1030 1508 0000 0005 5001 0119", "Śródmieście"),
+        ("WAWER", "Hej,", "VIN każdego samochodu",
+         "77 1030 1508 0000 0005 5003 2139", "Wawer"),
+        ("BEMOWO", "Cześć,", "VIN każdego samochodu",
+         "50 1030 1508 0000 0005 5000 2167", "Bemowo"),
+        ("WILANÓW", "Hej,", "wpisać VIN każdego samochodu",
+         "51 1030 1508 0000 0005 5001 6117", "Wilanów"),
+    ]
+    r = r + 5
+    for urzad, powitanie, vin_fraza, konto1, dzielnica in teksty:
+        ws.merge_range(r, 0, r, 4,
+                       "  TEKST DO SKOPIOWANIA — " + urzad, f_sec_band)
+        ws.set_row(r, 22)
+        tekst = (
+            powitanie + "\n\n"
+            "Bardzo proszę o PILNY przelew za rejestrację pojazdów na konto "
+            "Urzędu Dzielnicy " + dzielnica + ". W tytule przelewu zbiorczego "
+            "należy " + vin_fraza + ". Proszę również o wysłanie "
+            "potwierdzenia każdego przelewu.\n\n"
+            "Przelew 1\n"
+            "Kwota przelewu za rejestrację pojazdu: 160,00 zł\n"
+            "Nr konta bankowego do przelewu: " + konto1 + "\n"
+            "W tytule przelewu należy wpisać: \n\n"
+            "Przelew 2\n"
+            "Kwota przelewu za pełnomocnictwa: 17,00 zł\n"
+            "Nr konta bankowego do przelewu: 21 1030 1508 0000 0005 5000 0070\n"
+            "W tytule przelewu należy wpisać: ")
+        ws.merge_range(r + 1, 0, r + 12, 4, tekst, f_copy)
+        r += 14
+
     ws = wb.add_worksheet("Listy")
     sheet_order.append(ws)
     for c, (title, vals) in enumerate([
