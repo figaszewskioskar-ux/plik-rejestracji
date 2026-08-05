@@ -806,9 +806,9 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
     breakdown(4, "WG URZĘDU", URZEDY_CANON, "F", "F")
     breakdown(8, "WG MARKI", marki, "A", "A")
 
-    # WG WSPÓŁWŁAŚCICIELA (FINANSUJĄCEGO) — pod tabelą WG URZĘDU
+    # WG WSPÓŁWŁAŚCICIELA (FINANSUJĄCEGO) — obok tabeli WG MIESIĄCA
     col0 = 4
-    rw0 = 14
+    rw0 = 20
     ws.merge_range(rw0, col0, rw0, col0 + 1,
                    "  WG WSPÓŁWŁAŚCICIELA", f_sec_band)
     ws.set_row(rw0, 22)
