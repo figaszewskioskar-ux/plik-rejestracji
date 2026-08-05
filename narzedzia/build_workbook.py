@@ -150,7 +150,13 @@ DEALER_ALIASES = {
 }
 
 
-STATE = "user_file.xlsm"   # jeśli istnieje, buduj ze stanu pliku roboczego
+# plik główny użytkownika — źródło aktualnego stanu przy przebudowie
+STATE_CANDIDATES = ["Raport_rejestracji_99rent-GLOWNYYY].xlsm",
+                    "Raport_rejestracji_99rent-GLOWNYYY.xlsm",
+                    "user_file.xlsm"]
+import os as _os
+STATE = next((p for p in STATE_CANDIDATES if _os.path.exists(p)),
+             STATE_CANDIDATES[-1])
 
 
 def load_state(path):
