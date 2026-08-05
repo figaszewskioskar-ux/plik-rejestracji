@@ -290,7 +290,7 @@ Blad:
 End Sub
 
 ' ---------------------------------------------------------------------
-' Przycisk: PRZENIES DO REJESTRACJI (arkusz "Wnioski do stworzenia")
+' Przycisk: IMPORTUJ DO REJESTRU (arkusz "Import hurtowy")
 ' Wklejasz pojazdy w tabele wnioskow, zaznaczasz wiersze (albo nic -
 ' wtedy bierze wszystkie) i klikasz: pojazdy przechodza do W rejestracji.
 ' Urzad mozesz uzupelnic tutaj albo pozniej w rejestrze (lista w kol. F).
@@ -305,7 +305,7 @@ Sub PrzeniesWnioski()
 
     On Error GoTo Blad
     krok = "start"
-    Set wsI = ThisWorkbook.Worksheets("Wnioski do stworzenia")
+    Set wsI = ThisWorkbook.Worksheets("Import hurtowy")
     Set wsW = ThisWorkbook.Worksheets("W rejestracji")
     Set wsZ = ThisWorkbook.Worksheets("Zarejestrowane")
     Set doPrzen = CreateObject("Scripting.Dictionary")
@@ -956,7 +956,7 @@ Sub IdzPodsumowanie()
 End Sub
 
 Sub IdzImport()
-    Application.Goto ThisWorkbook.Worksheets("Wnioski do stworzenia").Range("A1"), True
+    Application.Goto ThisWorkbook.Worksheets("Import hurtowy").Range("A1"), True
 End Sub
 
 Sub IdzPulpit()

@@ -363,7 +363,7 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
 
     if with_vba:
         navs = [("W REJESTRACJI", "IdzWRejestracji"),
-                ("WNIOSKI", "IdzImport"),
+                ("IMPORT HURTOWY", "IdzImport"),
                 ("KATALOG ZAREJESTR.", "IdzZarejestrowane"),
                 ("PODSUMOWANIE", "IdzPodsumowanie")]
         col = 1
@@ -379,7 +379,7 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
         "kliknij go prawym przyciskiem → Właściwości → zaznacz „Odblokuj” → OK i otwórz ponownie.\n"
         "2.  W REJESTRACJI — pojazdy oczekujące (żółte wiersze). Nowy wniosek wpisujesz w formularzu (wiersz 5) i klikasz DODAJ WNIOSEK. "
         "Kolumna „Dni od złożenia” liczy się sama i podświetla pojazdy czekające zbyt długo (pomarańczowy > 10 dni, czerwony > 21 dni).\n"
-        "3.  WNIOSKI DO STWORZENIA — wklejasz pojazdy, zaznaczasz wiersze i przyciskiem przenosisz je do rejestru; urząd wybierzesz w rejestrze z listy w kolumnie F.\n"
+        "3.  IMPORT HURTOWY — wklejasz wiele pojazdów naraz i przyciskiem dodajesz je do rejestru (zaznaczenie wierszy = import tylko wybranych); urząd wybierzesz w rejestrze z listy w kolumnie F.\n"
         "4.  Po odebraniu rejestracji: zaznacz pojazdy w W REJESTRACJI i kliknij ZAREJESTRUJ ZAZNACZONE — przechodzą do katalogu "
         "ZAREJESTROWANE z licznikiem dni. Numer rejestracyjny wpisujesz wprost w kolumnie „Nr rejestracyjny” katalogu.\n"
         "5.  ZAREJESTROWANE — pojazd zarejestrowany wcześniej (poza rejestrem) dodasz bezpośrednio przyciskiem DODAJ DO KATALOGU; "
@@ -504,7 +504,7 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
                                          "albo wpisz RRRR-MM-DD. Puste pole = dziś."})
 
     # ======================================================= IMPORT HURTOWY
-    ws = wb.add_worksheet("Wnioski do stworzenia")
+    ws = wb.add_worksheet("Import hurtowy")
     sheet_order.append(ws)
     ws.set_tab_color("#F9A825")
     ihdr = ["Marka", "Model", "VIN", "Dealer", "Współwłaściciel", "Urząd",
@@ -514,12 +514,12 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
         ws.set_column(c, c, w)
     ws.set_column(8, 8, 2)
     ws.set_column(9, 9, 26)
-    header_band(ws, "  WNIOSKI DO STWORZENIA", 8)
+    header_band(ws, "  IMPORT HURTOWY — WIELE POJAZDÓW NARAZ", 8)
     nav_button(ws, 9)
 
     ws.merge_range(2, 0, 2, 7,
-                   "Wklej pojazdy do tabeli (od wiersza 9), zaznacz wiersze "
-                   "i kliknij PRZENIEŚ DO REJESTRACJI", f_form_title)
+                   "Wklej 10, 20, 30… pojazdów do tabeli (od wiersza 9) i kliknij "
+                   "IMPORTUJ DO REJESTRU (możesz też zaznaczyć tylko wybrane wiersze)", f_form_title)
     ws.merge_range(3, 0, 5, 7,
                    "Wymagany jest VIN (kolumna C), reszta pól opcjonalna. "
                    "Zaznacz wiersze do przeniesienia (bez zaznaczenia przenosi się "
@@ -528,7 +528,7 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
                    "możesz wybrać tam z listy w kolumnie F.", f_instr)
     if with_vba:
         ws.insert_button(2, 9, {"macro": "PrzeniesWnioski",
-                                "caption": "PRZENIEŚ DO REJESTRACJI ▶",
+                                "caption": "IMPORTUJ DO REJESTRU",
                                 "width": 180, "height": 44})
 
     for c, h in enumerate(ihdr):
