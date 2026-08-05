@@ -321,9 +321,10 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
                          "object_position": 3})
 
     def nav_button(ws, col):
+        ws.set_row(1, 30)
         if with_vba:
-            ws.insert_button(2, col, {"macro": "IdzPulpit", "caption": "◀ PULPIT",
-                                      "width": 90, "height": 24})
+            ws.insert_button(1, col, {"macro": "IdzPulpit", "caption": "◀ PULPIT",
+                                      "width": 96, "height": 26})
 
     sheet_order = []
 
@@ -420,7 +421,6 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
     ws.set_column(10, 10, 22)
     header_band(ws, "  POJAZDY W TRAKCIE REJESTRACJI", 9)
     nav_button(ws, 10)
-    ws.set_row(1, 24)
     ws.merge_range(1, 0, 1, 1, "Ilość w rejestracji:", f_cnt_lbl)
     ws.write_formula(
         1, 2, "=SUMPRODUCT(--(($A$%d:$A$%d&$C$%d:$C$%d)<>\"\"))"
@@ -565,7 +565,6 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
     ws.set_column(11, 11, 24)
     header_band(ws, "  KATALOG POJAZDÓW ZAREJESTROWANYCH", 10)
     nav_button(ws, 11)
-    ws.set_row(1, 24)
     ws.merge_range(1, 0, 1, 1, "W katalogu (bieżący mies.):", f_cnt_lbl)
     ws.write_formula(
         1, 2, "=SUMPRODUCT(--(($A$%d:$A$%d&$C$%d:$C$%d)<>\"\"))"
@@ -677,14 +676,14 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
     ws.set_column("N:O", 13)
     header_band(ws, "  PODSUMOWANIE REJESTRACJI", 15)
     ws.hide_gridlines(2)
-    ws.set_row(1, 30)
+    ws.set_row(1, 32)
     if with_vba:
         ws.insert_button(1, 1, {"macro": "GenerujRaport",
                                 "caption": "GENERUJ RAPORT (PLIK)",
-                                "width": 190, "height": 28})
+                                "width": 185, "height": 26})
         ws.insert_button(1, 3, {"macro": "IdzPulpit",
                                 "caption": "◀ PULPIT",
-                                "width": 100, "height": 28})
+                                "width": 96, "height": 26})
 
     ws.merge_range(2, 1, 2, 2, "  STATYSTYKI", f_sec_band)
     ws.set_row(2, 22)
