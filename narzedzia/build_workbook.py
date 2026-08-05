@@ -363,7 +363,7 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
 
     if with_vba:
         navs = [("W REJESTRACJI", "IdzWRejestracji"),
-                ("IMPORT HURTOWY", "IdzImport"),
+                ("WNIOSKI", "IdzImport"),
                 ("KATALOG ZAREJESTR.", "IdzZarejestrowane"),
                 ("PODSUMOWANIE", "IdzPodsumowanie")]
         col = 1
@@ -379,7 +379,7 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
         "kliknij go prawym przyciskiem → Właściwości → zaznacz „Odblokuj” → OK i otwórz ponownie.\n"
         "2.  W REJESTRACJI — pojazdy oczekujące (żółte wiersze). Nowy wniosek wpisujesz w formularzu (wiersz 5) i klikasz DODAJ WNIOSEK. "
         "Kolumna „Dni od złożenia” liczy się sama i podświetla pojazdy czekające zbyt długo (pomarańczowy > 10 dni, czerwony > 21 dni).\n"
-        "3.  IMPORT HURTOWY — wklejasz 10, 20, 30… pojazdów naraz (z VIN-ami) i jednym kliknięciem dodajesz wszystkie do rejestru.\n"
+        "3.  WNIOSKI DO STWORZENIA — wklejasz pojazdy, zaznaczasz wiersze i przyciskiem przenosisz je do rejestru; urząd wybierzesz w rejestrze z listy w kolumnie F.\n"
         "4.  Po odebraniu rejestracji: zaznacz pojazdy w W REJESTRACJI i kliknij ZAREJESTRUJ ZAZNACZONE — przechodzą do katalogu "
         "ZAREJESTROWANE z licznikiem dni. Numer rejestracyjny wpisujesz wprost w kolumnie „Nr rejestracyjny” katalogu.\n"
         "5.  ZAREJESTROWANE — pojazd zarejestrowany wcześniej (poza rejestrem) dodasz bezpośrednio przyciskiem DODAJ DO KATALOGU; "
@@ -492,6 +492,10 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
                        {"validate": "list",
                         "source": "=Listy!$C$2:$C$%d" % (len(URZEDY_CANON) + 1),
                         "show_error": False})
+    ws.data_validation(DATA_ROW - 1, 5, LAST - 1, 5,
+                       {"validate": "list",
+                        "source": "=Listy!$C$2:$C$%d" % (len(URZEDY_CANON) + 1),
+                        "show_error": False})
     ws.data_validation(FORM_ROW - 1, 6, FORM_ROW - 1, 6,
                        {"validate": "list", "source": "=Listy!$E$2:$E$32",
                         "show_error": False, "show_input": True,
@@ -500,7 +504,7 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
                                          "albo wpisz RRRR-MM-DD. Puste pole = dziś."})
 
     # ======================================================= IMPORT HURTOWY
-    ws = wb.add_worksheet("Import hurtowy")
+    ws = wb.add_worksheet("Wnioski do stworzenia")
     sheet_order.append(ws)
     ws.set_tab_color("#F9A825")
     ihdr = ["Marka", "Model", "VIN", "Dealer", "Współwłaściciel", "Urząd",
@@ -510,22 +514,21 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
         ws.set_column(c, c, w)
     ws.set_column(8, 8, 2)
     ws.set_column(9, 9, 26)
-    header_band(ws, "  IMPORT HURTOWY — WIELE POJAZDÓW NARAZ", 8)
+    header_band(ws, "  WNIOSKI DO STWORZENIA", 8)
     nav_button(ws, 9)
 
     ws.merge_range(2, 0, 2, 7,
-                   "Wklej 10, 20, 30… pojazdów do tabeli poniżej (od wiersza 9) "
-                   "i kliknij IMPORTUJ DO REJESTRU", f_form_title)
+                   "Wklej pojazdy do tabeli (od wiersza 9), zaznacz wiersze "
+                   "i kliknij PRZENIEŚ DO REJESTRACJI", f_form_title)
     ws.merge_range(3, 0, 5, 7,
-                   "Kolumny jak w arkuszu W rejestracji: wymagany jest VIN (kolumna C). "
-                   "Pusta data złożenia = dzisiejsza data. Pojazdy, których VIN już "
-                   "istnieje w rejestrze lub katalogu, zostaną pominięte — po imporcie "
-                   "zobaczysz podsumowanie. Zaimportowane wiersze trafiają do arkusza "
-                   "W REJESTRACJI z żółtym oznaczeniem, a tabela importu jest czyszczona.",
-                   f_instr)
+                   "Wymagany jest VIN (kolumna C), reszta pól opcjonalna. "
+                   "Zaznacz wiersze do przeniesienia (bez zaznaczenia przenosi się "
+                   "wszystko). Pusta data złożenia = dzisiejsza data. Duplikaty VIN "
+                   "są pomijane. Wnioski trafiają do W REJESTRACJI na żółto, a urząd "
+                   "możesz wybrać tam z listy w kolumnie F.", f_instr)
     if with_vba:
-        ws.insert_button(2, 9, {"macro": "DodajHurtowo",
-                                "caption": "IMPORTUJ DO REJESTRU",
+        ws.insert_button(2, 9, {"macro": "PrzeniesWnioski",
+                                "caption": "PRZENIEŚ DO REJESTRACJI ▶",
                                 "width": 180, "height": 44})
 
     for c, h in enumerate(ihdr):
@@ -802,6 +805,32 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
 
     breakdown(4, "WG URZĘDU", URZEDY_CANON, "F", "F")
     breakdown(8, "WG MARKI", marki, "A", "A")
+
+    # WG WSPÓŁWŁAŚCICIELA (FINANSUJĄCEGO) — kolumna E tylko w rejestrze
+    col0 = 16
+    ws.set_column(16, 16, 20)
+    ws.set_column(17, 17, 13)
+    ws.merge_range(2, col0, 2, col0 + 1,
+                   "  WG WSPÓŁWŁAŚCICIELA (FINANSUJĄCEGO)", f_sec_band)
+    ws.write(3, col0, "Nazwa", f_hdr)
+    ws.write(3, col0 + 1, "W rejestracji", f_hdr)
+    rr_w = 4
+    for it in wspolwl:
+        ws.write(rr_w, col0, it, f_tbl_text)
+        ws.write_formula(
+            rr_w, col0 + 1,
+            "=COUNTIF('W rejestracji'!$E$%d:$E$%d,%s%d)"
+            % (DATA_ROW, LAST, xl_col_to_name(col0), rr_w + 1), f_tbl_int)
+        rr_w += 1
+    ws.write(rr_w, col0, "inne / brak", f_tbl_text)
+    cw = xl_col_to_name(col0 + 1)
+    ws.write_formula(rr_w, col0 + 1,
+                     "=%s-SUM(%s5:%s%d)" % (stat_wrej_cell, cw, cw, rr_w),
+                     f_tbl_int)
+    rr_w += 1
+    ws.write(rr_w, col0, "RAZEM", f_total_lbl)
+    ws.write_formula(rr_w, col0 + 1, "=SUM(%s5:%s%d)" % (cw, cw, rr_w),
+                     f_total_box)
     breakdown(12, "WG DEALERA", dealerzy, "D", "E")
 
     # ================================================================= PILNE

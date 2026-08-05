@@ -31,7 +31,7 @@ def main(out="vbaProject.bin"):
     for (_, _, vba_fn, code) in p.extract_macros():
         found[vba_fn] = code
     p.close()
-    for sub in ("DodajWniosek", "DodajZarejestrowany", "DodajHurtowo",
+    for sub in ("DodajWniosek", "DodajZarejestrowany", "PrzeniesWnioski",
                 "IdzPulpit"):
         assert "Sub " + sub in found["Module1.bas"], sub
     print("vbaProject.bin OK —", len(data), "bajtów,", len(found), "modułów")

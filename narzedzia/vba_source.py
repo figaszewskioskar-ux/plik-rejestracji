@@ -290,60 +290,119 @@ Blad:
 End Sub
 
 ' ---------------------------------------------------------------------
-' Przycisk: IMPORTUJ DO REJESTRU (arkusz "Import hurtowy")
-' Wkleja sie wiele pojazdow naraz (10, 20, 30...) w tabele importu,
-' a makro przenosi je wszystkie do arkusza "W rejestracji".
+' Przycisk: PRZENIES DO REJESTRACJI (arkusz "Wnioski do stworzenia")
+' Wklejasz pojazdy w tabele wnioskow, zaznaczasz wiersze (albo nic -
+' wtedy bierze wszystkie) i klikasz: pojazdy przechodza do W rejestracji.
+' Urzad mozesz uzupelnic tutaj albo pozniej w rejestrze (lista w kol. F).
 ' ---------------------------------------------------------------------
-Sub DodajHurtowo()
+Sub PrzeniesWnioski()
+    Dim krok As String
     Dim wsI As Worksheet, wsW As Worksheet, wsZ As Worksheet
-    Dim i As Long, r As Long, n As Long, skipped As Long, lastI As Long
-    Dim vin As String, msg As String
+    Dim obszar As Range, wiersz As Range, doPrzen As Object, key As Variant
+    Dim i As Long, r As Long, rw As Long, n As Long, skipped As Long
+    Dim lastI As Long, vin As String
+    Dim arr() As Long, j As Long, tmp As Long
 
-    Set wsI = ThisWorkbook.Worksheets("Import hurtowy")
+    On Error GoTo Blad
+    krok = "start"
+    Set wsI = ThisWorkbook.Worksheets("Wnioski do stworzenia")
     Set wsW = ThisWorkbook.Worksheets("W rejestracji")
     Set wsZ = ThisWorkbook.Worksheets("Zarejestrowane")
-
+    Set doPrzen = CreateObject("Scripting.Dictionary")
     lastI = LastRow(wsI)
-    If lastI <= ROW_HDR Then
+
+    krok = "zbieranie wierszy"
+    If ActiveSheet.Name = wsI.Name And TypeName(Selection) = "Range" Then
+        For Each obszar In Selection.Areas
+            For Each wiersz In obszar.Rows
+                rw = wiersz.Row
+                If rw > ROW_HDR And rw <= lastI Then
+                    vin = Trim(CStr(wsI.Cells(rw, 3).Value))
+                    If vin <> "" And Not doPrzen.Exists(rw) Then
+                        doPrzen.Add rw, vin
+                    End If
+                End If
+            Next wiersz
+        Next obszar
+    End If
+    If doPrzen.Count = 0 Then
+        ' brak zaznaczenia w tabeli -> wszystkie wnioski z VIN
+        For i = ROW_HDR + 1 To lastI
+            If Trim(CStr(wsI.Cells(i, 3).Value)) <> "" Then
+                doPrzen.Add i, Trim(CStr(wsI.Cells(i, 3).Value))
+            End If
+        Next i
+    End If
+
+    If doPrzen.Count = 0 Then
         MsgBox "Wklej pojazdy w tabele od wiersza " & (ROW_HDR + 1) & _
-            " (kolumna VIN jest wymagana).", vbExclamation, "99rent"
+            " (kolumna VIN jest wymagana), zaznacz wiersze i kliknij ponownie.", _
+            vbExclamation, "99rent"
         Exit Sub
     End If
 
+    StopZegar
+    If MsgBox("Przeniesc " & doPrzen.Count & " wniosek/wnioski do arkusza " & _
+        "W REJESTRACJI?", vbYesNo + vbQuestion, "99rent") <> vbYes Then
+        StartZegar
+        Exit Sub
+    End If
+
+    ReDim arr(0 To doPrzen.Count - 1)
+    i = 0
+    For Each key In doPrzen.Keys
+        arr(i) = CLng(key)
+        i = i + 1
+    Next key
+    For i = 0 To UBound(arr) - 1
+        For j = i + 1 To UBound(arr)
+            If arr(j) > arr(i) Then
+                tmp = arr(i): arr(i) = arr(j): arr(j) = tmp
+            End If
+        Next j
+    Next i
+
     Application.ScreenUpdating = False
     n = 0: skipped = 0
-    For i = ROW_HDR + 1 To lastI
-        vin = Trim(CStr(wsI.Cells(i, 3).Value))
-        If vin <> "" Then
-            If FindVinRow(wsW, vin) > 0 Or FindVinRow(wsZ, vin) > 0 Then
-                skipped = skipped + 1
-            Else
-                r = LastRow(wsW) + 1
-                wsW.Cells(r, 1).Value = wsI.Cells(i, 1).Value    ' Marka
-                wsW.Cells(r, 2).Value = wsI.Cells(i, 2).Value    ' Model
-                wsW.Cells(r, 3).Value = vin                       ' VIN
-                wsW.Cells(r, 4).Value = wsI.Cells(i, 4).Value    ' Dealer
-                wsW.Cells(r, 5).Value = wsI.Cells(i, 5).Value    ' Wspolwl.
-                wsW.Cells(r, 6).Value = wsI.Cells(i, 6).Value    ' Urzad
-                wsW.Cells(r, 7).Value = SafeDate(wsI.Cells(i, 7).Value, Date)
-                wsW.Cells(r, 7).NumberFormat = "yyyy-mm-dd"
-                wsW.Cells(r, 8).Formula = "=IF($G" & r & "=" & Chr(34) & Chr(34) & _
-                    "," & Chr(34) & Chr(34) & ",TODAY()-$G" & r & ")"
-                wsW.Cells(r, 9).Value = wsI.Cells(i, 8).Value    ' Uwagi
-                PaintYellow wsW, r
-                n = n + 1
-            End If
+    For i = 0 To UBound(arr)
+        rw = arr(i)
+        krok = "przenoszenie wiersza " & rw
+        vin = Trim(CStr(wsI.Cells(rw, 3).Value))
+        If FindVinRow(wsW, vin) > 0 Or FindVinRow(wsZ, vin) > 0 Then
+            skipped = skipped + 1
+        Else
+            r = LastRow(wsW) + 1
+            wsW.Cells(r, 1).Value = wsI.Cells(rw, 1).Value    ' Marka
+            wsW.Cells(r, 2).Value = wsI.Cells(rw, 2).Value    ' Model
+            wsW.Cells(r, 3).Value = vin                        ' VIN
+            wsW.Cells(r, 4).Value = wsI.Cells(rw, 4).Value    ' Dealer
+            wsW.Cells(r, 5).Value = wsI.Cells(rw, 5).Value    ' Wspolwl.
+            wsW.Cells(r, 6).Value = wsI.Cells(rw, 6).Value    ' Urzad
+            wsW.Cells(r, 7).Value = SafeDate(wsI.Cells(rw, 7).Value, Date)
+            wsW.Cells(r, 7).NumberFormat = "yyyy-mm-dd"
+            wsW.Cells(r, 8).Formula = "=IF($G" & r & "=" & Chr(34) & Chr(34) & _
+                "," & Chr(34) & Chr(34) & ",TODAY()-$G" & r & ")"
+            wsW.Cells(r, 9).Value = wsI.Cells(rw, 8).Value    ' Uwagi
+            PaintYellow wsW, r
+            n = n + 1
         End If
+        wsI.Range(wsI.Cells(rw, 1), wsI.Cells(rw, 8)).Delete Shift:=xlUp
     Next i
-    If n > 0 Then
-        wsI.Range(wsI.Cells(ROW_HDR + 1, 1), wsI.Cells(lastI, 8)).ClearContents
-    End If
     Application.ScreenUpdating = True
 
-    msg = "Zaimportowano pojazdow: " & n & "."
+    Dim msg As String
+    msg = "Przeniesiono do rejestracji: " & n & " wniosek/wnioski."
     If skipped > 0 Then msg = msg & vbCrLf & _
         "Pominieto (VIN juz istnieje): " & skipped & "."
+    msg = msg & vbCrLf & "Urzad uzupelnisz w rejestrze - lista w kolumnie F."
     MsgBox msg, vbInformation, "99rent"
+    StartZegar
+    Exit Sub
+Blad:
+    Application.ScreenUpdating = True
+    MsgBox "Blad przenoszenia wnioskow (etap: " & krok & "):" & vbCrLf & _
+        Err.Number & " - " & Err.Description, vbCritical, "99rent"
+    StartZegar
 End Sub
 
 ' ---------------------------------------------------------------------
@@ -897,7 +956,7 @@ Sub IdzPodsumowanie()
 End Sub
 
 Sub IdzImport()
-    Application.Goto ThisWorkbook.Worksheets("Import hurtowy").Range("A1"), True
+    Application.Goto ThisWorkbook.Worksheets("Wnioski do stworzenia").Range("A1"), True
 End Sub
 
 Sub IdzPulpit()
