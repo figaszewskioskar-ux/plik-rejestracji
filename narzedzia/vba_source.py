@@ -800,9 +800,9 @@ Sub GenerujRaport()
         End If
     Next ksztalt
     If Not najw Is Nothing Then
+        On Error Resume Next   ' logo jest ozdoba - raport ma powstac zawsze
         najw.Copy
         ws.Paste ws.Range("B3")
-        On Error Resume Next
         With ws.Shapes(ws.Shapes.Count)
             .LockAspectRatio = True
             .Width = 90
