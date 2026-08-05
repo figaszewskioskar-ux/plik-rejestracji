@@ -717,19 +717,19 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
     stat_zar_cell = "$C$5"
 
     # --- FILTR: licz wg urzędu / marki / dealera / miesiąca ----------------
-    ws.merge_range(11, 1, 11, 3, "  FILTR — policz wg wybranych kryteriów", f_sec_band)
-    ws.set_row(11, 22)
+    ws.merge_range(12, 8, 12, 10, "  FILTR — policz wg wybranych kryteriów", f_sec_band)
+    ws.set_row(12, 22)
     filt = [("Miesiąc", "F", 9), ("Urząd", "G", len(URZEDY_CANON) + 1),
             ("Marka", "H", len(marki) + 1), ("Dealer", "I", len(dealerzy) + 1)]
     for i, (label, lcol, n) in enumerate(filt):
-        rr = 12 + i
-        ws.write(rr, 1, label, f_tbl_text)
-        ws.write_string(rr, 2, "(wszystkie)", f_input)
-        ws.data_validation(rr, 2, rr, 2,
+        rr = 13 + i
+        ws.write(rr, 8, label, f_tbl_text)
+        ws.write_string(rr, 9, "(wszystkie)", f_input)
+        ws.data_validation(rr, 9, rr, 9,
                            {"validate": "list",
                             "source": "=Listy!$%s$2:$%s$%d" % (lcol, lcol, n + 1),
                             "show_error": False})
-    FM, FU, FMA, FD = "$C$13", "$C$14", "$C$15", "$C$16"
+    FM, FU, FMA, FD = "$J$14", "$J$15", "$J$16", "$J$17"
 
     def sump(sheet, cmarka, cdealer, curzad, cdata, d=DATA_ROW, l=LAST):
         g = lambda col: "%s!$%s$%d:$%s$%d" % (sheet, col, d, col, l)
@@ -744,29 +744,23 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
                    "dea": g(cdealer), "dat": g(cdata),
                    "fu": FU, "fm": FMA, "fd": FD, "fmies": FM})
 
-    ws.write(17, 1, "W rejestracji (wg daty złożenia)", f_tbl_text)
-    ws.write_formula(17, 2, sump("'W rejestracji'", "A", "D", "F", "G"), f_val_box)
-    ws.write(18, 1, "Zarejestrowane (wg daty rejestracji)", f_tbl_text)
-    ws.write_formula(18, 2, "=" + "+".join(
+    ws.merge_range(18, 8, 18, 9, "W rejestracji (wg daty złożenia)", f_tbl_text)
+    ws.write_formula(18, 10, sump("'W rejestracji'", "A", "D", "F", "G"), f_val_box)
+    ws.merge_range(19, 8, 19, 9, "Zarejestrowane (wg daty rejestracji)", f_tbl_text)
+    ws.write_formula(19, 10, "=" + "+".join(
         sump(s0, "A", "E", "F", "H", a0, b0)[1:] for s0, a0, b0 in REJ_SHEETS),
         f_val_box)
-    ws.merge_range(15, 3, 18, 5,
-                   "Wybierz wartości z list (żółte pola) — liczniki obok "
-                   "przeliczają się od razu. „(wszystkie)” wyłącza dany filtr. "
-                   "Miesiąc: dla rejestru liczy się data złożenia, dla katalogu "
-                   "data rejestracji. Miesiące przeniesione do zakładek "
-                   "Archiwum liczy tabela WG MIESIĄCA poniżej.", f_note)
 
     # --- zestawienie miesięczne: 05.2026 – 12.2026 -------------------------
-    ws.merge_range(20, 1, 20, 3, "  WG MIESIĄCA (05–12.2026)", f_sec_band)
-    ws.set_row(20, 22)
-    ws.write(21, 1, "Miesiąc", f_hdr)
-    ws.write(21, 2, "Złożone wnioski", f_hdr)
-    ws.write(21, 3, "Zarejestrowane", f_hdr)
+    ws.merge_range(11, 1, 11, 3, "  WG MIESIĄCA (05–12.2026)", f_sec_band)
+    ws.set_row(11, 22)
+    ws.write(12, 1, "Miesiąc", f_hdr)
+    ws.write(12, 2, "Złożone wnioski", f_hdr)
+    ws.write(12, 3, "Zarejestrowane", f_hdr)
     f_month = fmt(bg_color="white", border=1, border_color="#D9D9D9",
                   num_format="yyyy-mm", align="center", bold=True)
     for k in range(8):
-        rr = 22 + k  # 0-indexed
+        rr = 13 + k  # 0-indexed
         mcell = "$B$%d" % (rr + 1)
         ws.write_formula(rr, 1, "=DATE(2026,%d,1)" % (5 + k), f_month)
         ws.write_formula(
@@ -822,9 +816,11 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
     breakdown(4, "WG URZĘDU", URZEDY_CANON, "F", "F")
     breakdown(8, "WG MARKI", marki, "A", "A")
 
-    # WG WSPÓŁWŁAŚCICIELA (FINANSUJĄCEGO) — pod tabelą WG MARKI, z odstępem
-    col0 = 8
-    rw0 = 20
+    # WG WSPÓŁWŁAŚCICIELA (FINANSUJĄCEGO) — obok WG DEALERA
+    col0 = 16
+    rw0 = 2
+    ws.set_column(16, 16, 20)
+    ws.set_column(17, 17, 13)
     ws.merge_range(rw0, col0, rw0, col0 + 1,
                    "  WG WSPÓŁWŁAŚCICIELA", f_sec_band)
     ws.set_row(rw0, 22)
