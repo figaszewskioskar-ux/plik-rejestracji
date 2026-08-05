@@ -632,8 +632,8 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
         else:
             ws.write_blank(r, 7, None, f_date_g)
         ws.write_formula(
-            r, 8, '=IF(OR($G%d="",$H%d=""),"",$H%d-$G%d)'
-            % (r + 1, r + 1, r + 1, r + 1), f_int_g)
+            r, 8, '=IF(OR($G%d="",$H%d="",$H%d<$G%d),"",$H%d-$G%d)'
+            % ((r + 1,) * 6), f_int_g)
         r += 1
     zlast = r
 
@@ -1114,6 +1114,8 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
                 ws.write_blank(r, 6, None, f_date_g)
             ws.write_datetime(r, 7, datarej, f_date_g)
             czas = (datarej.date() - dzl.date()).days if dzl is not None else None
+            if czas is not None and czas < 0:
+                czas = None
             if czas is not None:
                 ws.write_number(r, 8, czas, f_int_g)
             else:

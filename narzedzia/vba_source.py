@@ -170,7 +170,8 @@ Sub DodajZarejestrowany()
     ws.Cells(r, 8).Value = SafeDate(ws.Cells(ROW_FORM, 8).Value, Date)
     ws.Cells(r, 8).NumberFormat = "yyyy-mm-dd"
     ws.Cells(r, 9).Formula = "=IF(OR($G" & r & "=" & Chr(34) & Chr(34) & _
-        ",$H" & r & "=" & Chr(34) & Chr(34) & ")," & Chr(34) & Chr(34) & _
+        ",$H" & r & "=" & Chr(34) & Chr(34) & _
+        ",$H" & r & "<$G" & r & ")," & Chr(34) & Chr(34) & _
         ",$H" & r & "-$G" & r & ")"
     ws.Cells(r, 10).Value = ws.Cells(ROW_FORM, 10).Value        ' Uwagi
     PaintGreen ws, r
@@ -497,7 +498,8 @@ Sub ZarejestrujZaznaczone()
             wsZ.Cells(rz, 8).Value = Date                         ' Data rejestracji
             wsZ.Cells(rz, 8).NumberFormat = "yyyy-mm-dd"
             wsZ.Cells(rz, 9).Formula = "=IF(OR($G" & rz & "=" & Chr(34) & Chr(34) & _
-                ",$H" & rz & "=" & Chr(34) & Chr(34) & ")," & Chr(34) & Chr(34) & _
+                ",$H" & rz & "=" & Chr(34) & Chr(34) & _
+                ",$H" & rz & "<$G" & rz & ")," & Chr(34) & Chr(34) & _
                 ",$H" & rz & "-$G" & rz & ")"
             wsZ.Cells(rz, 10).Value = wsW.Cells(rw, 9).Value     ' Uwagi
             PaintGreen wsZ, rz
@@ -737,8 +739,10 @@ Sub GenerujRaport()
             End If
             If IsNumeric(wsZ.Cells(i, 9).Value) And _
                Trim(CStr(wsZ.Cells(i, 9).Value)) <> "" Then
-                sumaDni = sumaDni + CDbl(wsZ.Cells(i, 9).Value)
-                ileDni = ileDni + 1
+                If CDbl(wsZ.Cells(i, 9).Value) >= 0 Then
+                    sumaDni = sumaDni + CDbl(wsZ.Cells(i, 9).Value)
+                    ileDni = ileDni + 1
+                End If
             End If
         End If
     Next i
@@ -892,8 +896,10 @@ Sub GenerujRaport()
                     urzA(u) = urzA(u) + 1
                     If IsNumeric(wsX.Cells(i, 9).Value) And _
                        Trim(CStr(wsX.Cells(i, 9).Value)) <> "" Then
-                        urzS(u) = urzS(u) + CDbl(wsX.Cells(i, 9).Value)
-                        urzN(u) = urzN(u) + 1
+                        If CDbl(wsX.Cells(i, 9).Value) >= 0 Then
+                            urzS(u) = urzS(u) + CDbl(wsX.Cells(i, 9).Value)
+                            urzN(u) = urzN(u) + 1
+                        End If
                     End If
                 End If
             Next i
