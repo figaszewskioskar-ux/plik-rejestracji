@@ -702,7 +702,7 @@ Sub GenerujRaport()
     On Error GoTo Blad
     Dim wsW As Worksheet, wsZ As Worksheet, wsP As Worksheet
     Dim wbR As Workbook, ws As Worksheet
-    Dim i As Long, r As Long, c As Long, n As Long
+    Dim i As Long, j As Long, r As Long, c As Long, n As Long
     Dim wRej As Long, wKat As Long, wMies As Long
     Dim sumaDni As Double, ileDni As Long, maxCzek As Long
     Dim d As Variant, dz As Variant, progu As Date, plik As String
