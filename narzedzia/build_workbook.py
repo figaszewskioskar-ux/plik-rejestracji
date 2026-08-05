@@ -720,7 +720,8 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
     ws.merge_range(12, 8, 12, 10, "  FILTR — policz wg wybranych kryteriów", f_sec_band)
     ws.set_row(12, 22)
     filt = [("Miesiąc", "F", 9), ("Urząd", "G", len(URZEDY_CANON) + 1),
-            ("Marka", "H", len(marki) + 1), ("Dealer", "I", len(dealerzy) + 1)]
+            ("Marka", "H", len(marki) + 1), ("Dealer", "I", len(dealerzy) + 1),
+            ("Współwłaściciel", "D", len(wspolwl) + 1)]
     for i, (label, lcol, n) in enumerate(filt):
         rr = 13 + i
         ws.write(rr, 8, label, f_tbl_text)
@@ -729,27 +730,56 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
                            {"validate": "list",
                             "source": "=Listy!$%s$2:$%s$%d" % (lcol, lcol, n + 1),
                             "show_error": False})
-    FM, FU, FMA, FD = "$J$14", "$J$15", "$J$16", "$J$17"
+    FM, FU, FMA, FD, FW = "$J$14", "$J$15", "$J$16", "$J$17", "$J$18"
 
-    def sump(sheet, cmarka, cdealer, curzad, cdata, d=DATA_ROW, l=LAST):
+    def sump(sheet, cmarka, cdealer, curzad, cdata, d=DATA_ROW, l=LAST,
+             cwsp=None, expr=None):
         g = lambda col: "%s!$%s$%d:$%s$%d" % (sheet, col, d, col, l)
-        return ("=SUMPRODUCT((%(vin)s<>\"\")"
+        wsp_cond = ""
+        if cwsp:
+            wsp_cond = ("*IF(%(fw)s=\"(wszystkie)\",1,--(%(wsp)s=%(fw)s))"
+                        % {"fw": FW, "wsp": g(cwsp)})
+        tmpl = ("=SUMPRODUCT((%(base)s)"
                 "*IF(%(fu)s=\"(wszystkie)\",1,--(%(urz)s=%(fu)s))"
                 "*IF(%(fm)s=\"(wszystkie)\",1,--(%(mar)s=%(fm)s))"
                 "*IF(%(fd)s=\"(wszystkie)\",1,--(%(dea)s=%(fd)s))"
+                + wsp_cond +
                 "*IF(%(fmies)s=\"(wszystkie)\",1,"
                 "(%(dat)s>=DATEVALUE(%(fmies)s&\"-01\"))"
-                "*(%(dat)s<EDATE(DATEVALUE(%(fmies)s&\"-01\"),1))))"
-                % {"vin": g("C"), "urz": g(curzad), "mar": g(cmarka),
-                   "dea": g(cdealer), "dat": g(cdata),
-                   "fu": FU, "fm": FMA, "fd": FD, "fmies": FM})
+                "*(%(dat)s<EDATE(DATEVALUE(%(fmies)s&\"-01\"),1))))")
+        return tmpl % {"base": expr or ('(%s<>"")' % g("C")),
+                       "urz": g(curzad), "mar": g(cmarka),
+                       "dea": g(cdealer), "dat": g(cdata),
+                       "fu": FU, "fm": FMA, "fd": FD, "fmies": FM}
 
-    ws.merge_range(18, 8, 18, 9, "W rejestracji (wg daty złożenia)", f_tbl_text)
-    ws.write_formula(18, 10, sump("'W rejestracji'", "A", "D", "F", "G"), f_val_box)
-    ws.merge_range(19, 8, 19, 9, "Zarejestrowane (wg daty rejestracji)", f_tbl_text)
-    ws.write_formula(19, 10, "=" + "+".join(
-        sump(s0, "A", "E", "F", "H", a0, b0)[1:] for s0, a0, b0 in REJ_SHEETS),
-        f_val_box)
+    ws.merge_range(19, 8, 19, 9, "W rejestracji (wg daty złożenia)", f_tbl_text)
+    ws.write_formula(19, 10,
+                     sump("'W rejestracji'", "A", "D", "F", "G", cwsp="E"),
+                     f_val_box)
+    ws.merge_range(20, 8, 20, 9, "Zarejestrowane (wg daty rejestracji)", f_tbl_text)
+    zar_f = "+".join(
+        sump(s0, "A", "E", "F", "H", a0, b0)[1:] for s0, a0, b0 in REJ_SHEETS)
+    ws.write_formula(20, 10, "=" + zar_f, f_val_box)
+    ws.merge_range(21, 8, 21, 9, "RAZEM (rejestr + zarejestrowane)", f_tbl_text)
+    ws.write_formula(21, 10, "=K20+K21", f_val_box)
+    ws.merge_range(22, 8, 22, 9, "Średni czas rejestracji (dla filtra)", f_tbl_text)
+    czas_sum = "+".join(
+        sump(s0, "A", "E", "F", "H", a0, b0,
+             expr='(%(s)s!$I$%(a)d:$I$%(b)d)*(%(s)s!$I$%(a)d:$I$%(b)d>=0)'
+             % {"s": s0, "a": a0, "b": b0})[1:]
+        for s0, a0, b0 in REJ_SHEETS)
+    czas_cnt = "+".join(
+        sump(s0, "A", "E", "F", "H", a0, b0,
+             expr='(%(s)s!$I$%(a)d:$I$%(b)d<>"")*(%(s)s!$I$%(a)d:$I$%(b)d>=0)'
+             % {"s": s0, "a": a0, "b": b0})[1:]
+        for s0, a0, b0 in REJ_SHEETS)
+    ws.write_formula(22, 10,
+                     '=IF((%s)=0,"—",ROUND((%s)/(%s),1))'
+                     % (czas_cnt, czas_sum, czas_cnt), f_val_box)
+    ws.merge_range(23, 8, 23, 10,
+                   "Współwłaściciel filtruje tylko rejestr (katalog nie ma "
+                   "tej kolumny). Zarejestrowane i średni czas liczone ze "
+                   "wszystkich miesięcy (katalog + Archiwum).", f_note)
 
     # --- zestawienie miesięczne: 05.2026 – 12.2026 -------------------------
     ws.merge_range(11, 1, 11, 3, "  WG MIESIĄCA (05–12.2026)", f_sec_band)

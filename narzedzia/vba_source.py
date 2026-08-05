@@ -716,6 +716,8 @@ Sub GenerujRaport()
     Set wsP = ThisWorkbook.Worksheets("PULPIT")
     progu = DateSerial(Year(Date), Month(Date), 1)
     Set grupy = CreateObject("Scripting.Dictionary")
+    Dim odCzerwca As Date, wRok As Long
+    odCzerwca = DateSerial(Year(Date), 6, 1)
 
     For i = ROW_HDR + 1 To LastRow(wsW)
         If Trim(CStr(wsW.Cells(i, 3).Value)) <> "" Then
@@ -790,7 +792,29 @@ Sub GenerujRaport()
         On Error GoTo Blad
     End If
 
-    Dim kpiL(3) As String, kpiW(3) As Variant, c0 As Long
+    ' zarejestrowane od czerwca tego roku (katalog + archiwa)
+    Dim wsY As Worksheet, fY As Long, lY As Long
+    For Each wsY In ThisWorkbook.Worksheets
+        If wsY.Name = "Zarejestrowane" Or Left(wsY.Name, 8) = "Archiwum" Then
+            If wsY.Name = "Zarejestrowane" Then
+                fY = ROW_HDR + 1
+            Else
+                fY = 2
+            End If
+            lY = wsY.Cells(wsY.Rows.Count, 3).End(xlUp).Row
+            For i = fY To lY
+                If Trim(CStr(wsY.Cells(i, 3).Value)) <> "" Then
+                    If IsDate(wsY.Cells(i, 8).Value) Then
+                        If CDate(wsY.Cells(i, 8).Value) >= odCzerwca Then
+                            wRok = wRok + 1
+                        End If
+                    End If
+                End If
+            Next i
+        End If
+    Next wsY
+
+    Dim kpiL(4) As String, kpiW(4) As Variant, c0 As Long
     kpiL(0) = "POJAZDY" & vbLf & "W REJESTRACJI": kpiW(0) = wRej
     kpiL(1) = "POJAZDY" & vbLf & "ZAREJESTROWANE": kpiW(1) = wKat
     kpiL(2) = "ZAREJESTROWANE" & vbLf & "W TYM MIESIACU": kpiW(2) = wMies
@@ -800,7 +824,8 @@ Sub GenerujRaport()
     Else
         kpiL(3) = "SREDNI CZAS" & vbLf & "REJESTRACJI (DNI)": kpiW(3) = "-"
     End If
-    For i = 0 To 3
+    kpiL(4) = "ZAREJESTROWANE" & vbLf & "OD CZERWCA " & Year(Date): kpiW(4) = wRok
+    For i = 0 To 4
         c0 = 4 + i
         With ws.Cells(3, c0)
             .Value = kpiW(i)
@@ -985,7 +1010,8 @@ Sub GenerujRaport()
             r = r + 1
         Next i
         ws.Cells(r, 2).Value = "1. miejsce = najkrotszy sredni czas; " & _
-            "czerwona liczba = najwiecej rejestracji"
+            "czerwona liczba = najwiecej rejestracji. Ranking liczony ze " & _
+            "WSZYSTKICH miesiecy (katalog + zakladki Archiwum)."
         ws.Cells(r, 2).Font.Italic = True
         ws.Cells(r, 2).Font.Size = 9
         r = r + 2
