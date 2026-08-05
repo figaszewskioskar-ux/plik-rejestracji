@@ -418,7 +418,7 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
     nav_button(ws, 10)
 
     ws.merge_range(2, 0, 2, 8,
-                   "FORMULARZ — NOWY WNIOSEK:  wypełnij żółte pola i kliknij DODAJ WNIOSEK",
+                   "FORMULARZ — NOWY WNIOSEK:  wypełnij żółte pola i dodaj przez IMPORT HURTOWY lub wpisz bezpośrednio w tabeli",
                    f_form_title)
     for c, h in enumerate(headers):
         ws.write(3, c, h, f_form_label)
@@ -431,9 +431,6 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
             ws.write_blank(FORM_ROW - 1, c, None, f_input)
     ws.set_row(FORM_ROW - 1, 22)
     if with_vba:
-        ws.insert_button(3, 10, {"macro": "DodajWniosek",
-                                 "caption": "DODAJ WNIOSEK",
-                                 "width": 150, "height": 40})
         ws.insert_button(6, 10, {"macro": "ZarejestrujZaznaczone",
                                  "caption": "ZAREJESTRUJ ZAZNACZONE ▶",
                                  "width": 170, "height": 34})
