@@ -306,6 +306,10 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
     f_import_date = fmt(bg_color="#FFFDE7", border=1, border_color="#E0D9A0",
                         num_format="yyyy-mm-dd")
     f_bandrow = fmt(bg_color=BAND)
+    f_cnt_lbl = fmt(bold=True, font_size=11, align="right", valign="vcenter")
+    f_cnt_num = fmt(bold=True, font_color=RED, font_size=14, align="center",
+                    valign="vcenter", bg_color="white", border=1,
+                    border_color="#D9D9D9")
 
     def header_band(ws, title, ncols):
         ws.set_row(0, 40)
@@ -416,6 +420,11 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
     ws.set_column(10, 10, 22)
     header_band(ws, "  POJAZDY W TRAKCIE REJESTRACJI", 9)
     nav_button(ws, 10)
+    ws.set_row(1, 24)
+    ws.merge_range(1, 0, 1, 1, "Ilość w rejestracji:", f_cnt_lbl)
+    ws.write_formula(
+        1, 2, "=SUMPRODUCT(--(($A$%d:$A$%d&$C$%d:$C$%d)<>\"\"))"
+        % (DATA_ROW, LAST, DATA_ROW, LAST), f_cnt_num)
 
     ws.merge_range(2, 0, 2, 8,
                    "FORMULARZ — NOWY WNIOSEK:  wypełnij żółte pola i dodaj przez IMPORT HURTOWY lub wpisz bezpośrednio w tabeli",
@@ -556,6 +565,13 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
     ws.set_column(11, 11, 24)
     header_band(ws, "  KATALOG POJAZDÓW ZAREJESTROWANYCH", 10)
     nav_button(ws, 11)
+    ws.set_row(1, 24)
+    ws.merge_range(1, 0, 1, 1, "W katalogu (bieżący mies.):", f_cnt_lbl)
+    ws.write_formula(
+        1, 2, "=SUMPRODUCT(--(($A$%d:$A$%d&$C$%d:$C$%d)<>\"\"))"
+        % (DATA_ROW, LAST, DATA_ROW, LAST), f_cnt_num)
+    ws.merge_range(1, 4, 1, 5, "Łącznie z archiwum:", f_cnt_lbl)
+    ws.write_formula(1, 6, "=" + cnt_all, f_cnt_num)
 
     ws.merge_range(2, 0, 2, 9,
                    "FORMULARZ — POJAZD JUŻ ZAREJESTROWANY:  wypełnij żółte pola i kliknij DODAJ DO KATALOGU",
@@ -660,16 +676,15 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
     ws.set_column("M:M", 20)
     ws.set_column("N:O", 13)
     header_band(ws, "  PODSUMOWANIE REJESTRACJI", 15)
-    nav_button(ws, 14)
     ws.hide_gridlines(2)
+    ws.set_row(1, 30)
     if with_vba:
-        ws.insert_button(1, 12, {"macro": "GenerujRaport",
-                                 "caption": "GENERUJ RAPORT (PLIK)",
-                                 "width": 175, "height": 30})
-        ws.merge_range(1, 9, 1, 11,
-                       "Tworzy gotowy do wysłania plik xlsx z kluczowymi "
-                       "liczbami i listą rejestracji z bieżącego miesiąca →",
-                       f_note)
+        ws.insert_button(1, 1, {"macro": "GenerujRaport",
+                                "caption": "GENERUJ RAPORT (PLIK)",
+                                "width": 190, "height": 28})
+        ws.insert_button(1, 3, {"macro": "IdzPulpit",
+                                "caption": "◀ PULPIT",
+                                "width": 100, "height": 28})
 
     ws.merge_range(2, 1, 2, 2, "  STATYSTYKI", f_sec_band)
     ws.set_row(2, 22)
@@ -803,8 +818,8 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
     breakdown(4, "WG URZĘDU", URZEDY_CANON, "F", "F")
     breakdown(8, "WG MARKI", marki, "A", "A")
 
-    # WG WSPÓŁWŁAŚCICIELA (FINANSUJĄCEGO) — obok tabeli WG MIESIĄCA
-    col0 = 4
+    # WG WSPÓŁWŁAŚCICIELA (FINANSUJĄCEGO) — pod tabelą WG MARKI, z odstępem
+    col0 = 8
     rw0 = 20
     ws.merge_range(rw0, col0, rw0, col0 + 1,
                    "  WG WSPÓŁWŁAŚCICIELA", f_sec_band)
@@ -812,6 +827,7 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
     ws.write(rw0 + 1, col0, "Nazwa", f_hdr)
     ws.write(rw0 + 1, col0 + 1, "W rejestracji", f_hdr)
     rr_w = rw0 + 2
+    first_w = rr_w + 1  # 1-indeksowany pierwszy wiersz danych
     for it in wspolwl:
         ws.write(rr_w, col0, it, f_tbl_text)
         ws.write_formula(
@@ -822,12 +838,13 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
     ws.write(rr_w, col0, "inne / brak", f_tbl_text)
     cw = xl_col_to_name(col0 + 1)
     ws.write_formula(rr_w, col0 + 1,
-                     "=%s-SUM(%s5:%s%d)" % (stat_wrej_cell, cw, cw, rr_w),
+                     "=%s-SUM(%s%d:%s%d)" % (stat_wrej_cell, cw, first_w,
+                                             cw, rr_w),
                      f_tbl_int)
     rr_w += 1
     ws.write(rr_w, col0, "RAZEM", f_total_lbl)
-    ws.write_formula(rr_w, col0 + 1, "=SUM(%s5:%s%d)" % (cw, cw, rr_w),
-                     f_total_box)
+    ws.write_formula(rr_w, col0 + 1,
+                     "=SUM(%s%d:%s%d)" % (cw, first_w, cw, rr_w), f_total_box)
     breakdown(12, "WG DEALERA", dealerzy, "D", "E")
 
     # ================================================================= PILNE
