@@ -364,9 +364,24 @@ Sub PrzeniesWnioski()
     Next i
 
     Application.ScreenUpdating = False
+    Dim braki As Long, c2 As Long, pelny As Boolean
+    braki = 0
     n = 0: skipped = 0
     For i = 0 To UBound(arr)
         rw = arr(i)
+        krok = "sprawdzanie wiersza " & rw
+        ' wszystkie pola poza Uwagami musza byc wypelnione
+        pelny = True
+        For c2 = 1 To 7
+            If Trim(CStr(wsI.Cells(rw, c2).Value)) = "" Then
+                pelny = False
+                wsI.Cells(rw, c2).Interior.Color = RGB(255, 199, 206)
+            End If
+        Next c2
+        If Not pelny Then
+            braki = braki + 1
+            GoTo NastepnyWiersz
+        End If
         krok = "przenoszenie wiersza " & rw
         vin = Trim(CStr(wsI.Cells(rw, 3).Value))
         If FindVinRow(wsW, vin) > 0 Or FindVinRow(wsZ, vin) > 0 Then
@@ -388,6 +403,7 @@ Sub PrzeniesWnioski()
             n = n + 1
         End If
         wsI.Range(wsI.Cells(rw, 1), wsI.Cells(rw, 8)).Delete Shift:=xlUp
+NastepnyWiersz:
     Next i
     Application.ScreenUpdating = True
 
@@ -395,7 +411,9 @@ Sub PrzeniesWnioski()
     msg = "Przeniesiono do rejestracji: " & n & " wniosek/wnioski."
     If skipped > 0 Then msg = msg & vbCrLf & _
         "Pominieto (VIN juz istnieje): " & skipped & "."
-    msg = msg & vbCrLf & "Urzad uzupelnisz w rejestrze - lista w kolumnie F."
+    If braki > 0 Then msg = msg & vbCrLf & _
+        "NIE przeniesiono " & braki & " wiersza/y z pustymi polami " & _
+        "(podswietlone na czerwono) - wymagane wszystkie pola poza Uwagami."
     MsgBox msg, vbInformation, "99rent"
     StartZegar
     Exit Sub
