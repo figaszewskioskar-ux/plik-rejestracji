@@ -871,6 +871,120 @@ Sub GenerujRaport()
     End With
     r = r + 2
 
+    ' ranking urzedow: kto obsluguje najszybciej (katalog + archiwa)
+    Dim urzS As Object, urzN As Object, urzA As Object
+    Dim wsX As Worksheet, firstR As Long, lastR As Long, u As Variant
+    Set urzS = CreateObject("Scripting.Dictionary")
+    Set urzN = CreateObject("Scripting.Dictionary")
+    Set urzA = CreateObject("Scripting.Dictionary")
+    For Each wsX In ThisWorkbook.Worksheets
+        If wsX.Name = "Zarejestrowane" Or Left(wsX.Name, 8) = "Archiwum" Then
+            If wsX.Name = "Zarejestrowane" Then
+                firstR = ROW_HDR + 1
+            Else
+                firstR = 2
+            End If
+            lastR = wsX.Cells(wsX.Rows.Count, 3).End(xlUp).Row
+            For i = firstR To lastR
+                If Trim(CStr(wsX.Cells(i, 3).Value)) <> "" Then
+                    u = UCase(Trim(CStr(wsX.Cells(i, 6).Value)))
+                    If u = "" Then u = "(BRAK URZEDU)"
+                    urzA(u) = urzA(u) + 1
+                    If IsNumeric(wsX.Cells(i, 9).Value) And _
+                       Trim(CStr(wsX.Cells(i, 9).Value)) <> "" Then
+                        urzS(u) = urzS(u) + CDbl(wsX.Cells(i, 9).Value)
+                        urzN(u) = urzN(u) + 1
+                    End If
+                End If
+            Next i
+        End If
+    Next wsX
+
+    Dim kl() As String, av() As Double, cnt2() As Long, nk As Long
+    Dim tmpS As String, tmpD As Double, tmpL As Long, maxCnt As Long
+    nk = urzA.Count
+    If nk > 0 Then
+        ReDim kl(0 To nk - 1)
+        ReDim av(0 To nk - 1)
+        ReDim cnt2(0 To nk - 1)
+        i = 0
+        For Each u In urzA.Keys
+            kl(i) = CStr(u)
+            cnt2(i) = urzA(u)
+            av(i) = 9999
+            If urzN.Exists(u) Then
+                If urzN(u) > 0 Then av(i) = urzS(u) / urzN(u)
+            End If
+            i = i + 1
+        Next u
+        For i = 0 To nk - 2
+            For j = i + 1 To nk - 1
+                If av(j) < av(i) Then
+                    tmpD = av(i): av(i) = av(j): av(j) = tmpD
+                    tmpS = kl(i): kl(i) = kl(j): kl(j) = tmpS
+                    tmpL = cnt2(i): cnt2(i) = cnt2(j): cnt2(j) = tmpL
+                End If
+            Next j
+        Next i
+
+        With ws.Range(ws.Cells(r, 2), ws.Cells(r, 7))
+            .Merge
+            .Value = "  RANKING URZEDOW - KTO OBSLUGUJE NAJSZYBCIEJ  " & _
+                "(liczba urzedow: " & nk & ")"
+            .Font.Bold = True
+            .Font.Color = vbWhite
+            .Interior.Color = RGB(227, 6, 19)
+            .VerticalAlignment = xlCenter
+        End With
+        ws.Rows(r).RowHeight = 22
+        r = r + 1
+        Dim nagR As Variant
+        nagR = Array("Miejsce", "Urzad", "Sr. czas rej. (dni)", _
+            "Zarejestrowane (szt.)")
+        For i = 0 To 3
+            With ws.Cells(r, 2 + i)
+                .Value = nagR(i)
+                .Font.Bold = True
+                .Font.Color = vbWhite
+                .Interior.Color = RGB(63, 63, 63)
+                .Borders.Weight = xlThin
+            End With
+        Next i
+        r = r + 1
+        maxCnt = 0
+        For i = 0 To nk - 1
+            If cnt2(i) > maxCnt Then maxCnt = cnt2(i)
+        Next i
+        For i = 0 To nk - 1
+            ws.Cells(r, 2).Value = i + 1
+            ws.Cells(r, 2).HorizontalAlignment = xlCenter
+            ws.Cells(r, 3).Value = kl(i)
+            If av(i) < 9999 Then
+                ws.Cells(r, 4).Value = Round(av(i), 1)
+            Else
+                ws.Cells(r, 4).Value = "-"
+            End If
+            ws.Cells(r, 4).HorizontalAlignment = xlCenter
+            ws.Cells(r, 5).Value = cnt2(i)
+            ws.Cells(r, 5).HorizontalAlignment = xlCenter
+            With ws.Range(ws.Cells(r, 2), ws.Cells(r, 5))
+                .Interior.Color = IIf(i = 0, RGB(198, 239, 206), vbWhite)
+                .Borders.Color = RGB(200, 200, 200)
+                .Borders.Weight = xlThin
+            End With
+            If cnt2(i) = maxCnt Then
+                ws.Cells(r, 5).Font.Bold = True
+                ws.Cells(r, 5).Font.Color = RGB(227, 6, 19)
+            End If
+            r = r + 1
+        Next i
+        ws.Cells(r, 2).Value = "1. miejsce = najkrotszy sredni czas; " & _
+            "czerwona liczba = najwiecej rejestracji"
+        ws.Cells(r, 2).Font.Italic = True
+        ws.Cells(r, 2).Font.Size = 9
+        r = r + 2
+    End If
+
     With ws.Range(ws.Cells(r, 2), ws.Cells(r, 7))
         .Merge
         .Value = "  ZAREJESTROWANE W TYM MIESIACU (" & Format(Date, "yyyy-mm") & ")"
