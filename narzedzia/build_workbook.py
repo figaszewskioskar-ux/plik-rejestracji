@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """Build the 99rent vehicle-registration workbook (.xlsm with macros/buttons,
 or a formula-identical .xlsx copy for LibreOffice recalc verification)."""
+import calendar
 import collections
 import datetime
 import openpyxl
@@ -100,11 +101,15 @@ def load_data():
               m_dealer.get(z[4], z[4]), fix_urzad(z[5]), z[6], z[7], z[8], z[9])
              for z in zarej]
 
-    pilne = []
-    for r in wb["Arkusz4"].iter_rows(min_row=4, max_col=2, values_only=True):
-        if r[0] or r[1]:
-            pilne.append((s(r[0]), s(r[1])))
-    return wrej, zarej, pilne
+    # Arkusz4 (dawne "Pilne") zasila wzór DO REJESTRACJI: marka, model, VIN
+    dorej = []
+    for r in wb["Arkusz4"].iter_rows(min_row=2, max_col=2, values_only=True):
+        nm, vin = s(r[0]), s(r[1])
+        if not (nm or vin) or (vin or "").upper() == "VIN":
+            continue
+        marka, _, model = (nm or "").partition(" ")
+        dorej.append((marka or None, model or None, vin, None, None, None))
+    return wrej, zarej, dorej
 
 
 import unicodedata
@@ -190,29 +195,52 @@ def load_state(path):
     for name in wb.sheetnames:
         if name.startswith("Archiwum "):
             archiwa[name.split()[1]] = rows_of(wb[name], 2)
-    pilne = []
-    if "Pilne" in wb.sheetnames:
+    dorej = []
+    if "Do rejestracji" in wb.sheetnames:
+        for r in wb["Do rejestracji"].iter_rows(min_row=5, max_col=6,
+                                                values_only=True):
+            if any(s(v) for v in r[:6]):
+                dorej.append(tuple(s(v) for v in r[:6]))
+    elif "Pilne" in wb.sheetnames:
+        # starsze pliki: lista "Pilne" (marka i model, VIN) -> wzór DO REJESTRACJI
         for r in wb["Pilne"].iter_rows(min_row=4, max_col=2, values_only=True):
-            if r[0] or r[1]:
-                pilne.append((s(r[0]), s(r[1])))
-    return wrej, zarej, archiwa, pilne
+            nm, vin = s(r[0]), s(r[1])
+            if not (nm or vin) or (vin or "").upper() == "VIN":
+                continue
+            marka, _, model = (nm or "").partition(" ")
+            dorej.append((marka or None, model or None, vin,
+                          None, None, None))
+    return wrej, zarej, archiwa, dorej
 
 
 def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
           logo_small="logo99rent_small.png"):
     import os
+    synth = set()  # wiersze z przybliżoną datą rejestracji (koniec miesiąca)
     if os.path.exists(STATE):
-        wrej, zarej, stare_by_month, pilne = load_state(STATE)
+        wrej, zarej, stare_by_month, dorej = load_state(STATE)
     else:
-        wrej, zarej, pilne = load_data()
+        wrej, zarej, dorej = load_data()
         prog = (datetime.date.today().year, datetime.date.today().month)
         stare_by_month = {}
+        kat = []
         for z in zarej:
-            if z[7] is not None and (z[7].year, z[7].month) < prog:
-                stare_by_month.setdefault("%04d-%02d" % (z[7].year, z[7].month),
+            d = z[7]
+            if d is None and z[6] is not None and hasattr(z[6], "year") \
+                    and (z[6].year, z[6].month) < prog:
+                # zarejestrowany bez daty rejestracji, złożony w starym
+                # miesiącu -> archiwum tego miesiąca z datą przybliżoną
+                # (koniec miesiąca); czas rejestracji zostaje pusty
+                last = calendar.monthrange(z[6].year, z[6].month)[1]
+                d = datetime.datetime(z[6].year, z[6].month, last)
+                z = z[:7] + (d,) + z[8:]
+                synth.add(id(z))
+            if d is not None and (d.year, d.month) < prog:
+                stare_by_month.setdefault("%04d-%02d" % (d.year, d.month),
                                           []).append(z)
-        stare_ids = {id(z) for rows in stare_by_month.values() for z in rows}
-        zarej = [z for z in zarej if id(z) not in stare_ids]
+            else:
+                kat.append(z)
+        zarej = kat
 
     # arkusze, po których liczą się "zarejestrowane": katalog + archiwa
     REJ_SHEETS = [("Zarejestrowane", DATA_ROW, LAST)] + \
@@ -290,6 +318,7 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
 
     f_red = fmt(bg_color="#FFC7CE", font_color="#9C0006")
     f_amber = fmt(bg_color="#FFEB9C", font_color="#9C6500")
+    f_ok = fmt(bg_color="#C6EFCE", font_color="#006100")
     B = {"border": 1, "border_color": "#9E9E9E"}
     f_text_red = fmt(bg_color="#FFC7CE", **B)
     f_date_red = fmt(bg_color="#FFC7CE", num_format="yyyy-mm-dd", **B)
@@ -747,7 +776,7 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
                 "*IF(%(fmies)s=\"(wszystkie)\",1,"
                 "(%(dat)s>=DATEVALUE(%(fmies)s&\"-01\"))"
                 "*(%(dat)s<EDATE(DATEVALUE(%(fmies)s&\"-01\"),1))))")
-        return tmpl % {"base": expr or ('(%s<>"")' % g("C")),
+        return tmpl % {"base": expr or ('((%s&%s)<>"")' % (g(cmarka), g("C"))),
                        "urz": g(curzad), "mar": g(cmarka),
                        "dea": g(cdealer), "dat": g(cdata),
                        "fu": FU, "fm": FMA, "fd": FD, "fmies": FM}
@@ -763,14 +792,15 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
     ws.merge_range(21, 8, 21, 9, "RAZEM (rejestr + zarejestrowane)", f_tbl_text)
     ws.write_formula(21, 10, "=K20+K21", f_val_box)
     ws.merge_range(22, 8, 22, 9, "Średni czas rejestracji (dla filtra)", f_tbl_text)
+    # kolumna I bywa tekstem "" (brak dat) — liczymy tylko wartości liczbowe
     czas_sum = "+".join(
         sump(s0, "A", "E", "F", "H", a0, b0,
-             expr='(%(s)s!$I$%(a)d:$I$%(b)d)*(%(s)s!$I$%(a)d:$I$%(b)d>=0)'
+             expr='IF(ISNUMBER(%(s)s!$I$%(a)d:$I$%(b)d),%(s)s!$I$%(a)d:$I$%(b)d,0)'
              % {"s": s0, "a": a0, "b": b0})[1:]
         for s0, a0, b0 in REJ_SHEETS)
     czas_cnt = "+".join(
         sump(s0, "A", "E", "F", "H", a0, b0,
-             expr='(%(s)s!$I$%(a)d:$I$%(b)d<>"")*(%(s)s!$I$%(a)d:$I$%(b)d>=0)'
+             expr='(--ISNUMBER(%(s)s!$I$%(a)d:$I$%(b)d))'
              % {"s": s0, "a": a0, "b": b0})[1:]
         for s0, a0, b0 in REJ_SHEETS)
     ws.write_formula(22, 10,
@@ -877,22 +907,59 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
                      "=SUM(%s%d:%s%d)" % (cw, first_w, cw, rr_w), f_total_box)
     breakdown(12, "WG DEALERA", dealerzy, "D", "E")
 
-    # ================================================================= PILNE
-    ws = wb.add_worksheet("Pilne")
+    # ======================================================== DO REJESTRACJI
+    DR_HDR = 4     # 1-indeksowany wiersz nagłówków tabeli
+    DR_LAST = 304  # ostatni wiersz wzoru (300 pozycji)
+    ws = wb.add_worksheet("Do rejestracji")
     sheet_order.append(ws)
-    ws.set_tab_color("#B71C1C")
-    ws.set_column("A:A", 34)
-    ws.set_column("B:B", 22)
-    ws.set_column("C:D", 10)
-    header_band(ws, "  POJAZDY PILNE", 4)
-    ws.write(2, 0, "Lista priorytetowa z pierwotnego raportu", f_note)
-    ws.write(3, 0, "Marka i model", f_hdr)
-    ws.write(3, 1, "VIN", f_hdr)
-    r = 4
-    for nm, vin in pilne:
-        if nm: ws.write_string(r, 0, nm, f_text)
-        if vin: ws.write_string(r, 1, vin, f_text)
+    ws.set_tab_color("#E65100")
+    for c, w in enumerate([16, 24, 23, 18, 21, 44]):
+        ws.set_column(c, c, w)
+    ws.set_column(6, 6, 2)
+    ws.set_column(7, 7, 22)
+    header_band(ws, "  DO REJESTRACJI — POJAZDY DO ZŁOŻENIA", 6)
+    nav_button(ws, 7)
+    ws.merge_range(1, 0, 1, 1, "POJAZDY DO REJESTRACJI", f_cnt_lbl)
+    ws.write_formula(
+        1, 2, "=SUMPRODUCT(--(($A$%d:$A$%d&$C$%d:$C$%d)<>\"\"))"
+        % (DR_HDR + 1, DR_LAST, DR_HDR + 1, DR_LAST), f_cnt_num)
+    ws.write(2, 0, "Wzór: uzupełnij pojazd i urząd, w kolumnie „Komplet "
+             "dokumentów?” wybierz TAK / NIE — przy NIE wpisz w ostatniej "
+             "kolumnie, czego brakuje (wiersz podświetli się na czerwono, "
+             "komplet na zielono).", f_note)
+    for c, h in enumerate(["Marka", "Model", "VIN", "Urząd",
+                           "Komplet dokumentów?", "Czego brakuje"]):
+        ws.write(DR_HDR - 1, c, h, f_hdr)
+    ws.set_row(DR_HDR - 1, 24)
+    for r in range(DR_HDR, DR_LAST):
+        for c in range(6):
+            ws.write_blank(r, c, None, f_tbl_text)
+    r = DR_HDR
+    for marka, model, vin, urzad, komplet, brakuje in dorej:
+        for c, v in ((0, marka), (1, model), (2, vin), (3, urzad),
+                     (4, komplet), (5, brakuje)):
+            if v:
+                ws.write_string(r, c, str(v), f_tbl_text)
         r += 1
+    ws.data_validation(DR_HDR, 3, DR_LAST - 1, 3,
+                       {"validate": "list",
+                        "source": "=Listy!$C$2:$C$%d" % (len(URZEDY_CANON) + 1),
+                        "input_title": "Urząd",
+                        "input_message": "Wybierz urząd z listy."})
+    ws.data_validation(DR_HDR, 4, DR_LAST - 1, 4,
+                       {"validate": "list", "source": ["TAK", "NIE"],
+                        "input_title": "Komplet dokumentów?",
+                        "input_message":
+                        "NIE = wpisz braki w kolumnie „Czego brakuje”."})
+    ws.conditional_format(DR_HDR, 0, DR_LAST - 1, 5,
+                          {"type": "formula",
+                           "criteria": '=$E%d="NIE"' % (DR_HDR + 1),
+                           "format": f_red})
+    ws.conditional_format(DR_HDR, 0, DR_LAST - 1, 5,
+                          {"type": "formula",
+                           "criteria": '=$E%d="TAK"' % (DR_HDR + 1),
+                           "format": f_ok})
+    ws.freeze_panes(DR_HDR, 0)
 
     # ================================================================= LISTY
     # ================================================================ URZĘDY
@@ -1143,9 +1210,11 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
             else:
                 ws.write_blank(r, 6, None, f_date_g)
             ws.write_datetime(r, 7, datarej, f_date_g)
-            czas = (datarej.date() - dzl.date()).days if dzl is not None else None
-            if czas is not None and czas < 0:
-                czas = None
+            czas = None
+            if dzl is not None and id(z) not in synth:
+                czas = (datarej.date() - dzl.date()).days
+                if czas < 0:
+                    czas = None
             if czas is not None:
                 ws.write_number(r, 8, czas, f_int_g)
             else:
