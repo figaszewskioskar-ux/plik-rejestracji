@@ -16,10 +16,16 @@ Private Sub Workbook_Open()
     ' (gdy sesja Excela byla w trybie recznym, formuly pokazywaly 0 / 1900-01).
     Application.Calculation = xlCalculationAutomatic
     Application.CalculateFullRebuild
-    ' ochrona formul i naglowkow (makra moga pisac, uzytkownik nie)
+    ' ochrona formul i naglowkow (makra moga pisac; uzytkownik edytuje
+    ' tylko odblokowane komorki danych, zolte pola i filtry)
+    Dim wsO As Worksheet
     On Error Resume Next
-    ThisWorkbook.Worksheets("PULPIT").Protect UserInterfaceOnly:=True
-    ThisWorkbook.Worksheets("PODSUMOWANIE").Protect UserInterfaceOnly:=True
+    For Each wsO In ThisWorkbook.Worksheets
+        wsO.Protect UserInterfaceOnly:=True, AllowFiltering:=True, _
+            AllowSorting:=True, AllowFormattingCells:=True, _
+            AllowFormattingRows:=True, AllowInsertingRows:=True, _
+            AllowDeletingRows:=True
+    Next wsO
     On Error GoTo 0
     Module1.StartZegar
     Module1.SprawdzArchiwizacje
@@ -27,6 +33,7 @@ End Sub
 
 Private Sub Workbook_BeforeClose(Cancel As Boolean)
     Module1.StopZegar
+    Module1.ZapiszKopie
 End Sub
 '''
 
@@ -137,6 +144,7 @@ Sub DodajWniosek()
     End If
     ws.Cells(r, 10).Value = ws.Cells(ROW_FORM, 10).Value        ' Osoba
     ws.Cells(r, 11).Value = ws.Cells(ROW_FORM, 11).Value        ' Uwagi
+    ws.Cells(r, 12).Value = StatusZlozony()                      ' Status
     PaintYellow ws, r
 
     ws.Range(ws.Cells(ROW_FORM, 1), ws.Cells(ROW_FORM, 7)).ClearContents
@@ -184,6 +192,7 @@ Sub DodajZarejestrowany()
         ",$H" & r & "<$G" & r & ")," & Chr(34) & Chr(34) & _
         ",$H" & r & "-$G" & r & ")"
     ws.Cells(r, 10).Value = ws.Cells(ROW_FORM, 10).Value        ' Uwagi
+    ws.Cells(r, 11).Value = "zarejestrowany"                     ' Status
     PaintGreen ws, r
 
     ws.Range(ws.Cells(ROW_FORM, 1), ws.Cells(ROW_FORM, 8)).ClearContents
@@ -282,6 +291,7 @@ Sub PrzywrocZaznaczone()
             wsW.Cells(rz, 8).Formula = "=IF($G" & rz & "=" & Chr(34) & Chr(34) & _
                 "," & Chr(34) & Chr(34) & ",TODAY()-$G" & rz & ")"
             wsW.Cells(rz, 11).Value = wsZ.Cells(rw, 10).Value    ' Uwagi
+            wsW.Cells(rz, 12).Value = StatusZlozony()             ' Status
             PaintYellow wsW, rz
             n = n + 1
         End If
@@ -414,6 +424,7 @@ Sub PrzeniesWnioski()
             wsW.Cells(r, 8).Formula = "=IF($G" & r & "=" & Chr(34) & Chr(34) & _
                 "," & Chr(34) & Chr(34) & ",TODAY()-$G" & r & ")"
             wsW.Cells(r, 11).Value = wsI.Cells(rw, 10).Value  ' Uwagi
+            wsW.Cells(r, 12).Value = StatusZlozony()           ' Status
             PaintYellow wsW, r
             n = n + 1
         End If
@@ -535,6 +546,7 @@ Sub ZarejestrujZaznaczone()
                 ",$H" & rz & "<$G" & rz & ")," & Chr(34) & Chr(34) & _
                 ",$H" & rz & "-$G" & rz & ")"
             wsZ.Cells(rz, 10).Value = wsW.Cells(rw, 11).Value    ' Uwagi
+            wsZ.Cells(rz, 11).Value = "zarejestrowany"            ' Status
             PaintGreen wsZ, rz
             n = n + 1
         End If
@@ -1144,6 +1156,109 @@ End Sub
 Sub IdzImport()
     Application.Goto ThisWorkbook.Worksheets("Do rejestracji").Range("A1"), True
 End Sub
+
+Private Function StatusZlozony() As String
+    ' wartosc "zlozony" z polskimi znakami trzymana w ukrytej zakladce Listy
+    StatusZlozony = CStr(ThisWorkbook.Worksheets("Listy").Range("L2").Value)
+End Function
+
+Sub ZapiszKopie()
+    ' kopia bezpieczenstwa do podfolderu Kopie (jedna na dzien)
+    Dim folder As String
+    On Error Resume Next
+    If ThisWorkbook.Path = "" Then Exit Sub
+    folder = ThisWorkbook.Path & Application.PathSeparator & "Kopie"
+    If Dir(folder, vbDirectory) = "" Then MkDir folder
+    ThisWorkbook.SaveCopyAs folder & Application.PathSeparator & _
+        "Kopia_" & Format(Date, "yyyy-mm-dd") & "_" & ThisWorkbook.Name
+    On Error GoTo 0
+End Sub
+
+' ---------------------------------------------------------------------
+' Przycisk: PRZELEW (ZAZNACZONE) (arkusz "W rejestracji")
+' Zaznacz wiersze pojazdow: makro grupuje je po urzedzie i sklada tresc
+' przelewow (160 zl/pojazd + 17 zl pelnomocnictwo, VIN-y w tytule).
+' Wynik trafia do zakladki PRZELEWY (pole po prawej).
+' ---------------------------------------------------------------------
+Sub GenerujPrzelew()
+    Dim krok As String
+    Dim wsW As Worksheet, wsP As Worksheet
+    Dim obszar As Range, wiersz As Range, rw As Long
+    Dim urz As Object, key As Variant, vin As String, u As String
+    Dim txt As String, n As Long
+
+    On Error GoTo Blad
+    krok = "start"
+    Set wsW = ThisWorkbook.Worksheets("W rejestracji")
+    Set wsP = ThisWorkbook.Worksheets("PRZELEWY")
+    If ActiveSheet.Name <> wsW.Name Or TypeName(Selection) <> "Range" Then
+        MsgBox "Przejdz do W rejestracji i zaznacz wiersze pojazdow " & _
+            "do przelewu.", vbExclamation, "99rent"
+        Exit Sub
+    End If
+
+    krok = "zbieranie"
+    Set urz = CreateObject("Scripting.Dictionary")
+    For Each obszar In Selection.Areas
+        For Each wiersz In obszar.Rows
+            rw = wiersz.Row
+            If rw > ROW_HDR And rw <= LastRow(wsW) Then
+                vin = Trim(CStr(wsW.Cells(rw, 3).Value))
+                If vin <> "" Then
+                    u = Trim(CStr(wsW.Cells(rw, 6).Value))
+                    If u = "" Then u = "(BRAK URZEDU)"
+                    If urz.Exists(u) Then
+                        If InStr(urz(u), vin) = 0 Then urz(u) = urz(u) & ", " & vin
+                    Else
+                        urz(u) = vin
+                    End If
+                End If
+            End If
+        Next wiersz
+    Next obszar
+    If urz.Count = 0 Then
+        MsgBox "Zaznacz w tabeli wiersze pojazdow (z VIN).", vbExclamation, "99rent"
+        Exit Sub
+    End If
+
+    krok = "skladanie tresci"
+    txt = "PRZELEWY wygenerowane " & Format(Now, "yyyy-mm-dd hh:mm") & vbLf & vbLf
+    For Each key In urz.Keys
+        n = UBound(Split(urz(key), ",")) + 1
+        txt = txt & "URZAD: " & key & "  (pojazdow: " & n & ")" & vbLf & _
+            "Przelew 1 - rejestracja: " & Format(n * 160, "#,##0.00") & " zl" & vbLf & _
+            "Konto: " & KontoUrzedu(CStr(key)) & vbLf & _
+            "W tytule: " & urz(key) & vbLf & _
+            "Przelew 2 - pelnomocnictwa: " & Format(n * 17, "#,##0.00") & " zl" & vbLf & _
+            "Konto: 21 1030 1508 0000 0005 5000 0070" & vbLf & _
+            "W tytule: " & urz(key) & vbLf & vbLf
+    Next key
+
+    krok = "zapis do PRZELEWY"
+    wsP.Range("G3").Value = txt
+    Application.Goto wsP.Range("G3"), True
+    MsgBox "Tresc przelewow gotowa w zakladce PRZELEWY (pole po prawej) - " & _
+        "skopiuj ja do maila.", vbInformation, "99rent"
+    Exit Sub
+Blad:
+    MsgBox "Blad generowania przelewu (etap: " & krok & "):" & vbCrLf & _
+        Err.Number & " - " & Err.Description, vbCritical, "99rent"
+End Sub
+
+Private Function KontoUrzedu(u As String) As String
+    ' nr konta czytany z tabeli w zakladce PRZELEWY (kolumny A i C)
+    Dim wsP As Worksheet, i As Long
+    Set wsP = ThisWorkbook.Worksheets("PRZELEWY")
+    KontoUrzedu = "(brak konta w tabeli PRZELEWY - uzupelnij recznie)"
+    For i = 1 To 40
+        If UCase(Trim(CStr(wsP.Cells(i, 1).Value))) = UCase(Trim(u)) Then
+            If Trim(CStr(wsP.Cells(i, 3).Value)) <> "" Then
+                KontoUrzedu = Trim(CStr(wsP.Cells(i, 3).Value))
+            End If
+            Exit Function
+        End If
+    Next i
+End Function
 
 Sub IdzPulpit()
     Application.Goto ThisWorkbook.Worksheets("PULPIT").Range("A1"), True
