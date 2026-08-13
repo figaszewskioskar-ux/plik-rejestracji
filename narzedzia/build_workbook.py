@@ -612,6 +612,85 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
 
     ws.write(34, 1, "Stworzone przez: Oskar Figaszewski", f_note)
 
+    # ===================== DO REJESTRACJI (wzór + import hurtowy) ==========
+    ws = wb.add_worksheet("Do rejestracji")
+    sheet_order.append(ws)
+    ws.set_tab_color("#E65100")
+    dhdr = ["Marka", "Model", "VIN", "Dealer", "Współwłaściciel", "Urząd",
+            "Data złożenia", "Komplet dokumentów?", "Czego brakuje", "Uwagi"]
+    dw = [14, 20, 23, 17, 17, 15, 14, 20, 30, 24]
+    for c, w in enumerate(dw):
+        ws.set_column(c, c, w)
+    ws.set_column(10, 10, 2)
+    ws.set_column(11, 11, 26)
+    header_band(ws, "  DO REJESTRACJI — WZÓR I IMPORT HURTOWY", 10)
+    nav_button(ws, 11)
+    DR_END = DATA_ROW - 1 + 299  # 0-indeksowany ostatni wiersz tabeli
+    ws.merge_range(1, 0, 1, 1, "POJAZDY DO REJESTRACJI", f_cnt_lbl)
+    ws.write_formula(
+        1, 2, "=SUMPRODUCT(--(($A$%d:$A$%d&$C$%d:$C$%d)<>\"\"))"
+        % (DATA_ROW, DR_END + 1, DATA_ROW, DR_END + 1), f_cnt_num)
+
+    ws.merge_range(2, 0, 2, 9,
+                   "Wklej 10, 20, 30… pojazdów do tabeli (od wiersza 9) i kliknij "
+                   "IMPORTUJ DO REJESTRU (możesz też zaznaczyć tylko wybrane wiersze)", f_form_title)
+    ws.merge_range(3, 0, 5, 9,
+                   "Wzór: w kolumnie „Komplet dokumentów?” wybierz TAK / NIE — przy "
+                   "NIE wpisz, czego brakuje (wiersz podświetli się na czerwono, "
+                   "komplet na zielono). Import przenosi do W REJESTRACJI tylko "
+                   "wiersze z kompletem (TAK) i wypełnionymi kolumnami A–G; braki "
+                   "zostają podświetlone na czerwono. Bez zaznaczenia przenosi się "
+                   "wszystko, duplikaty VIN są pomijane.", f_instr)
+    if with_vba:
+        ws.insert_button(2, 11, {"macro": "PrzeniesWnioski",
+                                 "caption": "IMPORTUJ DO REJESTRU",
+                                 "width": 180, "height": 44})
+
+    for c, h in enumerate(dhdr):
+        ws.write(HDR_ROW - 1, c, h, f_hdr)
+    ws.set_row(HDR_ROW - 1, 28)
+    for rr in range(DATA_ROW - 1, DR_END + 1):
+        for c in range(10):
+            ws.write_blank(rr, c, None,
+                           f_import_date if c == 6 else f_import)
+    r = DATA_ROW - 1
+    for row10 in dorej:
+        for c, v in enumerate(row10[:10]):
+            if v is None:
+                continue
+            if hasattr(v, "year"):
+                ws.write_datetime(r, c, v, f_import_date)
+            else:
+                ws.write_string(r, c, str(v), f_import)
+        r += 1
+    ws.data_validation(DATA_ROW - 1, 3, DR_END, 3,
+                       {"validate": "list",
+                        "source": "=Listy!$B$2:$B$%d" % (len(dealerzy) + 1),
+                        "show_error": False})
+    ws.data_validation(DATA_ROW - 1, 4, DR_END, 4,
+                       {"validate": "list",
+                        "source": "=Listy!$D$2:$D$%d" % (len(wspolwl) + 1),
+                        "show_error": False})
+    ws.data_validation(DATA_ROW - 1, 5, DR_END, 5,
+                       {"validate": "list",
+                        "source": "=Listy!$C$2:$C$%d" % (len(URZEDY_CANON) + 1),
+                        "show_error": False})
+    ws.data_validation(DATA_ROW - 1, 6, DR_END, 6,
+                       {"validate": "list", "source": "=Listy!$E$2:$E$32",
+                        "show_error": False})
+    ws.data_validation(DATA_ROW - 1, 7, DR_END, 7,
+                       {"validate": "list", "source": ["TAK", "NIE"],
+                        "show_error": False})
+    ws.conditional_format(DATA_ROW - 1, 0, DR_END, 9,
+                          {"type": "formula",
+                           "criteria": '=$H%d="NIE"' % DATA_ROW,
+                           "format": f_red})
+    ws.conditional_format(DATA_ROW - 1, 0, DR_END, 9,
+                          {"type": "formula",
+                           "criteria": '=$H%d="TAK"' % DATA_ROW,
+                           "format": f_ok})
+    ws.freeze_panes(HDR_ROW, 0)
+
     # ========================================================= W REJESTRACJI
     ws = wb.add_worksheet("W rejestracji")
     sheet_order.append(ws)
@@ -748,85 +827,6 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
     ws.data_validation(DATA_ROW - 1, 8, LAST - 1, 8,
                        {"validate": "list", "source": "=Listy!$J$2:$J$16",
                         "show_error": False})
-
-    # ===================== DO REJESTRACJI (wzór + import hurtowy) ==========
-    ws = wb.add_worksheet("Do rejestracji")
-    sheet_order.append(ws)
-    ws.set_tab_color("#E65100")
-    dhdr = ["Marka", "Model", "VIN", "Dealer", "Współwłaściciel", "Urząd",
-            "Data złożenia", "Komplet dokumentów?", "Czego brakuje", "Uwagi"]
-    dw = [14, 20, 23, 17, 17, 15, 14, 20, 30, 24]
-    for c, w in enumerate(dw):
-        ws.set_column(c, c, w)
-    ws.set_column(10, 10, 2)
-    ws.set_column(11, 11, 26)
-    header_band(ws, "  DO REJESTRACJI — WZÓR I IMPORT HURTOWY", 10)
-    nav_button(ws, 11)
-    DR_END = DATA_ROW - 1 + 299  # 0-indeksowany ostatni wiersz tabeli
-    ws.merge_range(1, 0, 1, 1, "POJAZDY DO REJESTRACJI", f_cnt_lbl)
-    ws.write_formula(
-        1, 2, "=SUMPRODUCT(--(($A$%d:$A$%d&$C$%d:$C$%d)<>\"\"))"
-        % (DATA_ROW, DR_END + 1, DATA_ROW, DR_END + 1), f_cnt_num)
-
-    ws.merge_range(2, 0, 2, 9,
-                   "Wklej 10, 20, 30… pojazdów do tabeli (od wiersza 9) i kliknij "
-                   "IMPORTUJ DO REJESTRU (możesz też zaznaczyć tylko wybrane wiersze)", f_form_title)
-    ws.merge_range(3, 0, 5, 9,
-                   "Wzór: w kolumnie „Komplet dokumentów?” wybierz TAK / NIE — przy "
-                   "NIE wpisz, czego brakuje (wiersz podświetli się na czerwono, "
-                   "komplet na zielono). Import przenosi do W REJESTRACJI tylko "
-                   "wiersze z kompletem (TAK) i wypełnionymi kolumnami A–G; braki "
-                   "zostają podświetlone na czerwono. Bez zaznaczenia przenosi się "
-                   "wszystko, duplikaty VIN są pomijane.", f_instr)
-    if with_vba:
-        ws.insert_button(2, 11, {"macro": "PrzeniesWnioski",
-                                 "caption": "IMPORTUJ DO REJESTRU",
-                                 "width": 180, "height": 44})
-
-    for c, h in enumerate(dhdr):
-        ws.write(HDR_ROW - 1, c, h, f_hdr)
-    ws.set_row(HDR_ROW - 1, 28)
-    for rr in range(DATA_ROW - 1, DR_END + 1):
-        for c in range(10):
-            ws.write_blank(rr, c, None,
-                           f_import_date if c == 6 else f_import)
-    r = DATA_ROW - 1
-    for row10 in dorej:
-        for c, v in enumerate(row10[:10]):
-            if v is None:
-                continue
-            if hasattr(v, "year"):
-                ws.write_datetime(r, c, v, f_import_date)
-            else:
-                ws.write_string(r, c, str(v), f_import)
-        r += 1
-    ws.data_validation(DATA_ROW - 1, 3, DR_END, 3,
-                       {"validate": "list",
-                        "source": "=Listy!$B$2:$B$%d" % (len(dealerzy) + 1),
-                        "show_error": False})
-    ws.data_validation(DATA_ROW - 1, 4, DR_END, 4,
-                       {"validate": "list",
-                        "source": "=Listy!$D$2:$D$%d" % (len(wspolwl) + 1),
-                        "show_error": False})
-    ws.data_validation(DATA_ROW - 1, 5, DR_END, 5,
-                       {"validate": "list",
-                        "source": "=Listy!$C$2:$C$%d" % (len(URZEDY_CANON) + 1),
-                        "show_error": False})
-    ws.data_validation(DATA_ROW - 1, 6, DR_END, 6,
-                       {"validate": "list", "source": "=Listy!$E$2:$E$32",
-                        "show_error": False})
-    ws.data_validation(DATA_ROW - 1, 7, DR_END, 7,
-                       {"validate": "list", "source": ["TAK", "NIE"],
-                        "show_error": False})
-    ws.conditional_format(DATA_ROW - 1, 0, DR_END, 9,
-                          {"type": "formula",
-                           "criteria": '=$H%d="NIE"' % DATA_ROW,
-                           "format": f_red})
-    ws.conditional_format(DATA_ROW - 1, 0, DR_END, 9,
-                          {"type": "formula",
-                           "criteria": '=$H%d="TAK"' % DATA_ROW,
-                           "format": f_ok})
-    ws.freeze_panes(HDR_ROW, 0)
 
     # ========================================================= ZAREJESTROWANE
     ws = wb.add_worksheet("Zarejestrowane")
