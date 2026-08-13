@@ -19,6 +19,7 @@ LAST = 3000  # formula range horizon
 FORM_ROW = 5   # 1-indexed sheet row of form inputs
 HDR_ROW = 8    # 1-indexed sheet row of table headers
 DATA_ROW = 9   # first data row
+ARCH_DATA = 15  # 1-indexed first data row in Archiwum sheets (stats above)
 
 
 GREEN_FILLS = {"FF00B050", "FF92D050"}   # odebrane / zarejestrowane
@@ -195,7 +196,11 @@ def load_state(path):
     archiwa = {}
     for name in wb.sheetnames:
         if name.startswith("Archiwum "):
-            archiwa[name.split()[1]] = rows_of(wb[name], 2)
+            # nowy układ ma statystyki na górze i nagłówki w wierszu 14
+            first = ARCH_DATA if str(
+                wb[name].cell(row=ARCH_DATA - 1, column=1).value or ""
+            ) == "Marka" else 2
+            archiwa[name.split()[1]] = rows_of(wb[name], first)
     # DO REJESTRACJI: (marka, model, vin, dealer, wsp, urzad, dzl, komplet,
     # brakuje, uwagi) — czytamy nowy układ, starsze warianty konwertujemy
     dorej = []
@@ -263,15 +268,17 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
 
     # arkusze, po których liczą się "zarejestrowane": katalog + archiwa
     REJ_SHEETS = [("Zarejestrowane", DATA_ROW, LAST)] + \
-        [("'Archiwum %s'" % k, 2, 5000) for k in sorted(stare_by_month)]
+        [("'Archiwum %s'" % k, ARCH_DATA, 5000) for k in sorted(stare_by_month)]
 
     def zsum(tmpl):
         """Suma formuły po katalogu i wszystkich zakładkach Archiwum.
         tmpl używa %(s)s (arkusz), %(a)d (pierwszy wiersz), %(b)d (ostatni)."""
         return "+".join(tmpl % {"s": s0, "a": a0, "b": b0}
                         for s0, a0, b0 in REJ_SHEETS)
-    marki = canonical([r[0] for r in wrej] + [z[0] for z in zarej])
-    dealerzy = canonical([r[3] for r in wrej] + [z[4] for z in zarej])
+    # listy obejmują też pojazdy z zakładek Archiwum
+    zarch = zarej + [z for rows in stare_by_month.values() for z in rows]
+    marki = canonical([r[0] for r in wrej] + [z[0] for z in zarch])
+    dealerzy = canonical([r[3] for r in wrej] + [z[4] for z in zarch])
     wspolwl = canonical([r[4] for r in wrej])
 
     wb = xlsxwriter.Workbook(path, {"remove_timezone": True})
@@ -754,16 +761,16 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
     ws.set_tab_color("#616161")
     ws.set_column("A:A", 2)
     ws.set_column("B:B", 34)
-    ws.set_column("C:C", 12)
+    ws.set_column("C:C", 16)
     ws.set_column("D:D", 3)
     ws.set_column("E:E", 20)
-    ws.set_column("F:G", 13)
+    ws.set_column("F:G", 16)
     ws.set_column("H:H", 3)
     ws.set_column("I:I", 20)
-    ws.set_column("J:K", 13)
+    ws.set_column("J:K", 16)
     ws.set_column("L:L", 3)
     ws.set_column("M:M", 20)
-    ws.set_column("N:O", 13)
+    ws.set_column("N:O", 16)
     header_band(ws, "  PODSUMOWANIE REJESTRACJI", 15)
     ws.hide_gridlines(2)
     ws.set_row(1, 44)
@@ -804,20 +811,22 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
     stat_zar_cell = "$C$5"
 
     # --- FILTR: licz wg urzędu / marki / dealera / miesiąca ----------------
-    ws.merge_range(12, 8, 12, 10, "  FILTR — policz wg wybranych kryteriów", f_sec_band)
-    ws.set_row(12, 22)
+    # pod tabelą WG MARKI (jej ostatni wiersz to RAZEM na 0-idx 5+len(marki))
+    FT = max(12, len(marki) + 7)  # 0-indeksowany wiersz pasa FILTR
+    ws.merge_range(FT, 8, FT, 10, "  FILTR — policz wg wybranych kryteriów", f_sec_band)
+    ws.set_row(FT, 22)
     filt = [("Miesiąc", "F", 9), ("Urząd", "G", len(URZEDY_CANON) + 1),
             ("Marka", "H", len(marki) + 1), ("Dealer", "I", len(dealerzy) + 1),
             ("Współwłaściciel", "D", len(wspolwl) + 1)]
     for i, (label, lcol, n) in enumerate(filt):
-        rr = 13 + i
+        rr = FT + 1 + i
         ws.write(rr, 8, label, f_tbl_text)
         ws.write_string(rr, 9, "(wszystkie)", f_input)
         ws.data_validation(rr, 9, rr, 9,
                            {"validate": "list",
                             "source": "=Listy!$%s$2:$%s$%d" % (lcol, lcol, n + 1),
                             "show_error": False})
-    FM, FU, FMA, FD, FW = "$J$14", "$J$15", "$J$16", "$J$17", "$J$18"
+    FM, FU, FMA, FD, FW = ("$J$%d" % (FT + 2 + i) for i in range(5))
 
     def sump(sheet, cmarka, cdealer, curzad, cdata, d=DATA_ROW, l=LAST,
              cwsp=None, expr=None):
@@ -839,17 +848,18 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
                        "dea": g(cdealer), "dat": g(cdata),
                        "fu": FU, "fm": FMA, "fd": FD, "fmies": FM}
 
-    ws.merge_range(19, 8, 19, 9, "W rejestracji (wg daty złożenia)", f_tbl_text)
-    ws.write_formula(19, 10,
+    FR = FT + 7  # 0-indeksowany pierwszy wiersz wyników filtra
+    ws.merge_range(FR, 8, FR, 9, "W rejestracji (wg daty złożenia)", f_tbl_text)
+    ws.write_formula(FR, 10,
                      sump("'W rejestracji'", "A", "D", "F", "G", cwsp="E"),
                      f_val_box)
-    ws.merge_range(20, 8, 20, 9, "Zarejestrowane (wg daty rejestracji)", f_tbl_text)
+    ws.merge_range(FR + 1, 8, FR + 1, 9, "Zarejestrowane (wg daty rejestracji)", f_tbl_text)
     zar_f = "+".join(
         sump(s0, "A", "E", "F", "H", a0, b0)[1:] for s0, a0, b0 in REJ_SHEETS)
-    ws.write_formula(20, 10, "=" + zar_f, f_val_box)
-    ws.merge_range(21, 8, 21, 9, "RAZEM (rejestr + zarejestrowane)", f_tbl_text)
-    ws.write_formula(21, 10, "=K20+K21", f_val_box)
-    ws.merge_range(22, 8, 22, 9, "Średni czas rejestracji (dla filtra)", f_tbl_text)
+    ws.write_formula(FR + 1, 10, "=" + zar_f, f_val_box)
+    ws.merge_range(FR + 2, 8, FR + 2, 9, "RAZEM (rejestr + zarejestrowane)", f_tbl_text)
+    ws.write_formula(FR + 2, 10, "=K%d+K%d" % (FR + 1, FR + 2), f_val_box)
+    ws.merge_range(FR + 3, 8, FR + 3, 9, "Średni czas rejestracji (dla filtra)", f_tbl_text)
     # kolumna I bywa tekstem "" (brak dat) — liczymy tylko wartości liczbowe
     czas_sum = "+".join(
         sump(s0, "A", "E", "F", "H", a0, b0,
@@ -861,10 +871,10 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
              expr='(--ISNUMBER(%(s)s!$I$%(a)d:$I$%(b)d))'
              % {"s": s0, "a": a0, "b": b0})[1:]
         for s0, a0, b0 in REJ_SHEETS)
-    ws.write_formula(22, 10,
+    ws.write_formula(FR + 3, 10,
                      '=IF((%s)=0,"—",ROUND((%s)/(%s),1))'
                      % (czas_cnt, czas_sum, czas_cnt), f_val_box)
-    ws.merge_range(23, 8, 23, 10,
+    ws.merge_range(FR + 4, 8, FR + 4, 10,
                    "Współwłaściciel filtruje tylko rejestr (katalog nie ma "
                    "tej kolumny). Zarejestrowane i średni czas liczone ze "
                    "wszystkich miesięcy (katalog + Archiwum).", f_note)
@@ -893,7 +903,7 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
             "=" + zsum('COUNTIFS(%%(s)s!$H$%%(a)d:$H$%%(b)d,">="&%(m)s,'
                        '%%(s)s!$H$%%(a)d:$H$%%(b)d,"<"&EDATE(%(m)s,1))'
                        % {"m": mcell}), f_tbl_int)
-    ws.set_column("D:D", 14)
+    ws.set_column("D:D", 16)
 
     def breakdown(col0, title, items, wcol, zcol):
         """Emit name/count/count table at 0-indexed col0."""
@@ -938,7 +948,7 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
     col0 = 16
     rw0 = 2
     ws.set_column(16, 16, 20)
-    ws.set_column(17, 17, 13)
+    ws.set_column(17, 17, 16)
     ws.merge_range(rw0, col0, rw0, col0 + 1,
                    "  WG WSPÓŁWŁAŚCICIELA", f_sec_band)
     ws.set_row(rw0, 22)
@@ -1195,12 +1205,55 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
         ws = wb.add_worksheet("Archiwum %s" % klucz)
         sheet_order.append(ws)
         ws.set_tab_color("#787878")
-        for c, w in enumerate([14, 20, 23, 17, 17, 15, 14, 15, 15, 32]):
+        for c, w in enumerate([16, 20, 23, 17, 18, 15, 14, 15, 16, 32]):
             ws.set_column(c, c, w)
+
+        # --- statystyki miesiąca na górze (jak PULPIT / PODSUMOWANIE) ------
+        header_band(ws, "  ARCHIWUM %s — ZAREJESTROWANE" % klucz, 10)
+        arng = "$%%s$%d:$%%s$5000" % ARCH_DATA
+        rng = lambda col: (arng % (col, col))
+        ws.set_row(1, 34)
+        ws.merge_range(1, 0, 1, 1, "ZAREJESTROWANE %s" % klucz, f_cnt_lbl)
+        ws.write_formula(
+            1, 2, "=SUMPRODUCT(--((%s&%s)<>\"\"))" % (rng("A"), rng("C")),
+            f_cnt_num)
+        ws.merge_range(1, 4, 1, 5, "ŚREDNI CZAS REJESTRACJI (DNI)", f_cnt_lbl)
+        ws.write_formula(
+            1, 6, "=IF(COUNT(%s)=0,\"—\",ROUND(AVERAGE(%s),1))"
+            % (rng("I"), rng("I")), f_cnt_num)
+
+        ws.merge_range(2, 0, 2, 1, "  WG URZĘDU", f_sec_band)
+        ws.merge_range(2, 3, 2, 4, "  WG MARKI", f_sec_band)
+        ws.merge_range(2, 6, 2, 7, "  WG DEALERA", f_sec_band)
+        ws.set_row(2, 22)
+
+        def mini_tbl(col0, items, datacol):
+            rr = 3
+            for it in items:
+                ws.write(rr, col0, it, f_tbl_text)
+                ws.write_formula(
+                    rr, col0 + 1, "=COUNTIF(%s,%s%d)"
+                    % (rng(datacol), xl_col_to_name(col0), rr + 1), f_tbl_int)
+                rr += 1
+            ws.write(rr, col0, "inne / brak", f_tbl_text)
+            cc = xl_col_to_name(col0 + 1)
+            ws.write_formula(rr, col0 + 1,
+                             "=$C$2-SUM(%s4:%s%d)" % (cc, cc, rr), f_tbl_int)
+            for pad in range(rr + 1, 12):
+                ws.write_blank(pad, col0, None)
+
+        cnt_u = collections.Counter(z[5] for z in stare_by_month[klucz] if z[5])
+        cnt_m = collections.Counter(z[0] for z in stare_by_month[klucz] if z[0])
+        cnt_d = collections.Counter(z[4] for z in stare_by_month[klucz] if z[4])
+        mini_tbl(0, [u for u, _ in cnt_u.most_common(8)], "F")
+        mini_tbl(3, [m for m, _ in cnt_m.most_common(8)], "A")
+        mini_tbl(6, [d for d, _ in cnt_d.most_common(8)], "E")
+
+        # --- tabela danych od wiersza ARCH_DATA ----------------------------
         for c, h in enumerate(zhdr_arch):
-            ws.write(0, c, h, f_hdr)
-        ws.set_row(0, 24)
-        for r, z in enumerate(stare_by_month[klucz], start=1):
+            ws.write(ARCH_DATA - 2, c, h, f_hdr)
+        ws.set_row(ARCH_DATA - 2, 24)
+        for r, z in enumerate(stare_by_month[klucz], start=ARCH_DATA - 1):
             marka, model, vin, nrrej, dealer, urzad, dzl, datarej, cena, uwagi = z
             for c, v in ((0, marka), (1, model), (2, vin), (3, nrrej),
                          (4, dealer), (5, urzad), (9, uwagi)):
@@ -1222,8 +1275,9 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
                 ws.write_number(r, 8, czas, f_int_g)
             else:
                 ws.write_blank(r, 8, None, f_int_g)
-        ws.freeze_panes(1, 0)
-        ws.autofilter(0, 0, len(stare_by_month[klucz]), 9)
+        ws.freeze_panes(ARCH_DATA - 1, 0)
+        ws.autofilter(ARCH_DATA - 2, 0,
+                      ARCH_DATA - 2 + len(stare_by_month[klucz]), 9)
 
     if with_vba:
         for i, s in enumerate(sheet_order):
