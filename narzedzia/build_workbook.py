@@ -541,22 +541,39 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
         "Żółte pola = pola do wypełnienia.  Duplikaty VIN są blokowane przez przyciski i podświetlane na czerwono w tabelach."
     )
     ws.merge_range(9, 1, 17, 10, instr, f_instr)
+
+    zasady = (
+        "ZASADY DLA NOWYCH UŻYTKOWNIKÓW — JAK NIE POPSUĆ PLIKU\n"
+        "•  Pojazdy przenoś WYŁĄCZNIE przyciskami (IMPORTUJ DO REJESTRU, ZAREJESTRUJ ZAZNACZONE, PRZYWRÓĆ, ARCHIWIZUJ) — "
+        "nie wycinaj i nie przeklejaj wierszy ręcznie między zakładkami.\n"
+        "•  Nie zmieniaj nazw zakładek ani nagłówków tabel — liczniki i przyciski szukają ich po nazwach.\n"
+        "•  Nie wpisuj nic w kolumny liczone automatycznie („Dni od złożenia”, „Czas rejestracji”) — PULPIT i PODSUMOWANIE "
+        "są chronione przed edycją; wypełniasz tylko żółte pola, tabele danych i pola filtrów.\n"
+        "•  Dane z zewnątrz wklejaj jako wartości (prawy przycisk → Wklej specjalnie → Wartości), żeby nie nadpisać kolorów i list rozwijanych.\n"
+        "•  Nie usuwaj zakładek Archiwum ani ukrytej zakładki „Listy” — zasilają statystyki i listy rozwijane.\n"
+        "•  Zapisuj zawsze jako .xlsm (skoroszyt z obsługą makr) i pracujcie w jednej kopii pliku naraz.\n"
+        "•  Daty wpisuj jako RRRR-MM-DD albo wybieraj z listy; VIN ma 17 znaków — duplikaty podświetlają się na czerwono.\n"
+        "•  Coś poszło nie tak? Zamknij plik BEZ zapisywania i otwórz ponownie — wróci ostatni zapisany stan."
+    )
+    f_rules = fmt(font_size=10, text_wrap=True, valign="top",
+                  bg_color="#FDE9E9", border=1, border_color=RED)
+    ws.merge_range(19, 1, 27, 10, zasady, f_rules)
     f_leg_y = fmt(bg_color="#FFF9C4", border=1, border_color="#9E9E9E",
                   align="center", font_size=9)
     f_leg_g = fmt(bg_color="#C6EFCE", border=1, border_color="#9E9E9E",
                   align="center", font_size=9)
     f_leg_r = fmt(bg_color="#FFC7CE", border=1, border_color="#9E9E9E",
                   align="center", font_size=9)
-    ws.write(19, 1, "LEGENDA KOLORÓW:", f_lbl)
-    ws.merge_range(19, 3, 19, 4, "w rejestracji (złożone)", f_leg_y)
-    ws.merge_range(19, 5, 19, 6, "zarejestrowany", f_leg_g)
-    ws.merge_range(19, 7, 19, 8, "wymaga uwagi / zaległy", f_leg_r)
+    ws.write(29, 1, "LEGENDA KOLORÓW:", f_lbl)
+    ws.merge_range(29, 3, 29, 4, "w rejestracji (złożone)", f_leg_y)
+    ws.merge_range(29, 5, 29, 6, "zarejestrowany", f_leg_g)
+    ws.merge_range(29, 7, 29, 8, "wymaga uwagi / zaległy", f_leg_r)
 
     # --- SZUKAJ VIN --------------------------------------------------------
-    ws.write(21, 1, "SZUKAJ VIN:", f_lbl)
-    ws.merge_range(21, 3, 21, 4, "", f_input_free)
-    ws.write(22, 3, "wpisz pełny VIN i Enter", f_note)
-    SV = "$D$22"
+    ws.write(31, 1, "SZUKAJ VIN:", f_lbl)
+    ws.merge_range(31, 3, 31, 4, "", f_input_free)
+    ws.write(32, 3, "wpisz pełny VIN i Enter", f_note)
+    SV = "$D$32"
     szuk = [("'W rejestracji'", DATA_ROW, LAST, "W REJESTRACJI"),
             ("Zarejestrowane", DATA_ROW, LAST, "ZAREJESTROWANY (katalog)"),
             ("'Do rejestracji'", DATA_ROW, DATA_ROW + 299, "DO REJESTRACJI")] + \
@@ -571,12 +588,12 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
                'T(INDEX(%s!$B$%d:$B$%d,MATCH(%s,%s!$C$%d:$C$%d,0)))'
                % (sh, a, b, SV, sh, a, b, sh, a, b, SV, sh, a, b))
         poj_f = 'IF(%s,%s,%s)' % (cnt, idx, poj_f)
-    ws.merge_range(21, 5, 21, 7, "", f_val_box)
-    ws.write_formula(21, 5, '=IF(%s="","",%s)' % (SV, st_f), f_val_box)
-    ws.merge_range(21, 8, 21, 10, "", f_tbl_text)
-    ws.write_formula(21, 8, '=IF(%s="","",TRIM(%s))' % (SV, poj_f), f_tbl_text)
+    ws.merge_range(31, 5, 31, 7, "", f_val_box)
+    ws.write_formula(31, 5, '=IF(%s="","",%s)' % (SV, st_f), f_val_box)
+    ws.merge_range(31, 8, 31, 10, "", f_tbl_text)
+    ws.write_formula(31, 8, '=IF(%s="","",TRIM(%s))' % (SV, poj_f), f_tbl_text)
 
-    ws.write(24, 1, "Stworzone przez: Oskar Figaszewski", f_note)
+    ws.write(34, 1, "Stworzone przez: Oskar Figaszewski", f_note)
 
     # ========================================================= W REJESTRACJI
     ws = wb.add_worksheet("W rejestracji")
