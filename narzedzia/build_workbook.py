@@ -522,42 +522,48 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
     ws.set_row(7, 30)
 
     instr = (
-        "JAK KORZYSTAĆ Z PLIKU\n"
-        "1.  Przy otwarciu kliknij „Włącz zawartość” — przyciski wymagają włączonych makr. Jeśli Excel blokuje makra: zamknij plik, "
-        "kliknij go prawym przyciskiem → Właściwości → zaznacz „Odblokuj” → OK i otwórz ponownie.\n"
-        "2.  W REJESTRACJI — pojazdy oczekujące (żółte wiersze). Nowy wniosek wpisujesz w formularzu (wiersz 5) i klikasz DODAJ WNIOSEK. "
-        "Kolumna „Dni od złożenia” liczy się sama i podświetla pojazdy czekające zbyt długo (pomarańczowy > 10 dni, czerwony > 21 dni); "
-        "w kolumnach „Planowany odbiór” i „Osoba prowadząca” pilnujesz odbiorów — karty ODBIORY DZIŚ/JUTRO i TERMIN 30 DNI na PULPICIE liczą się z nich same. "
-        "Wyszukiwarka VIN na dole PULPITU pokazuje, w którym arkuszu jest pojazd.\n"
-        "3.  DO REJESTRACJI — wzór pojazdów przed złożeniem: wklejasz wiele naraz, oznaczasz komplet dokumentów (TAK/NIE, przy NIE wpisujesz czego brakuje) "
-        "i przyciskiem IMPORTUJ DO REJESTRU dodajesz je do rejestru (zaznaczenie wierszy = import tylko wybranych; przenoszą się tylko wiersze z kompletem).\n"
-        "4.  Po odebraniu rejestracji: zaznacz pojazdy w W REJESTRACJI i kliknij ZAREJESTRUJ ZAZNACZONE — przechodzą do katalogu "
-        "ZAREJESTROWANE z licznikiem dni. Numer rejestracyjny wpisujesz wprost w kolumnie „Nr rejestracyjny” katalogu.\n"
-        "5.  ZAREJESTROWANE — pojazd zarejestrowany wcześniej (poza rejestrem) dodasz bezpośrednio przyciskiem DODAJ DO KATALOGU; "
-        "pomyłkę cofniesz przyciskiem PRZYWRÓĆ DO REJESTRACJI (zaznacz wiersze).\n"
-        "6.  PODSUMOWANIE — statystyki wg urzędu, dealera i marki oraz czasy rejestracji liczą się automatycznie.\n"
-        "7.  ARCHIWUM — na początku każdego miesiąca plik proponuje przeniesienie pojazdów zarejestrowanych w starych miesiącach "
-        "do zakładki „Archiwum RRRR-MM” na dole pliku (przycisk ARCHIWIZUJ STARE MIES. w katalogu robi to na żądanie).\n"
-        "Żółte pola = pola do wypełnienia.  Duplikaty VIN są blokowane przez przyciski i podświetlane na czerwono w tabelach."
+        "JAK KORZYSTAĆ Z PLIKU — NAJWAŻNIEJSZE\n"
+        "1.  Po pobraniu: prawy przycisk na pliku → Właściwości → zaznacz „Odblokuj” → OK, a po otwarciu kliknij „Włącz zawartość” — przyciski wymagają włączonych makr (poradniki niżej).\n"
+        "2.  Obieg pojazdu: DO REJESTRACJI (wklejasz wiele naraz, oznaczasz komplet dokumentów TAK/NIE) → IMPORTUJ DO REJESTRU → W REJESTRACJI (żółte wiersze) → "
+        "ZAREJESTRUJ ZAZNACZONE → ZAREJESTROWANE (zielone) → ARCHIWIZUJ STARE MIES. Pomyłkę cofniesz przyciskiem PRZYWRÓĆ DO REJESTRACJI.\n"
+        "3.  Pojazdy przenoś WYŁĄCZNIE przyciskami — nie wycinaj i nie przeklejaj wierszy ręcznie między zakładkami; dane z zewnątrz wklejaj jako wartości "
+        "(prawy przycisk → Wklej specjalnie → Wartości), żeby nie nadpisać kolorów i list rozwijanych.\n"
+        "4.  Wypełniasz tylko żółte pola, tabele danych i pola filtrów. Kolumny „Dni od złożenia” i „Czas rejestracji” liczą się same — nic tam nie wpisuj "
+        "(PULPIT i PODSUMOWANIE są chronione przed edycją). Daty wpisuj jako RRRR-MM-DD albo z listy; VIN ma 17 znaków, duplikaty świecą na czerwono.\n"
+        "5.  Terminy pilnujesz w W REJESTRACJI: kolumny „Planowany odbiór” i „Osoba prowadząca” zasilają karty ODBIORY DZIŚ/JUTRO i TERMIN 30 DNI na PULPICIE; "
+        "wyszukiwarka VIN na dole pokazuje, w którym arkuszu jest pojazd.\n"
+        "6.  Nie zmieniaj nazw zakładek ani nagłówków tabel i nie usuwaj zakładek Archiwum ani ukrytej „Listy” — liczniki i makra ich potrzebują. "
+        "Zapisuj zawsze jako .xlsm i pracujcie w jednej kopii pliku naraz.\n"
+        "7.  PODSUMOWANIE liczy statystyki automatycznie, GENERUJ RAPORT tworzy gotowy plik raportu, a archiwizację starego miesiąca plik sam proponuje przy pierwszym otwarciu.\n"
+        "8.  Coś poszło nie tak? Zamknij plik BEZ zapisywania i otwórz ponownie — wróci ostatni zapisany stan."
     )
-    ws.merge_range(9, 1, 17, 10, instr, f_instr)
+    ws.merge_range(9, 1, 21, 10, instr, f_instr)
 
-    zasady = (
-        "ZASADY DLA NOWYCH UŻYTKOWNIKÓW — JAK NIE POPSUĆ PLIKU\n"
-        "•  Pojazdy przenoś WYŁĄCZNIE przyciskami (IMPORTUJ DO REJESTRU, ZAREJESTRUJ ZAZNACZONE, PRZYWRÓĆ, ARCHIWIZUJ) — "
-        "nie wycinaj i nie przeklejaj wierszy ręcznie między zakładkami.\n"
-        "•  Nie zmieniaj nazw zakładek ani nagłówków tabel — liczniki i przyciski szukają ich po nazwach.\n"
-        "•  Nie wpisuj nic w kolumny liczone automatycznie („Dni od złożenia”, „Czas rejestracji”) — PULPIT i PODSUMOWANIE "
-        "są chronione przed edycją; wypełniasz tylko żółte pola, tabele danych i pola filtrów.\n"
-        "•  Dane z zewnątrz wklejaj jako wartości (prawy przycisk → Wklej specjalnie → Wartości), żeby nie nadpisać kolorów i list rozwijanych.\n"
-        "•  Nie usuwaj zakładek Archiwum ani ukrytej zakładki „Listy” — zasilają statystyki i listy rozwijane.\n"
-        "•  Zapisuj zawsze jako .xlsm (skoroszyt z obsługą makr) i pracujcie w jednej kopii pliku naraz.\n"
-        "•  Daty wpisuj jako RRRR-MM-DD albo wybieraj z listy; VIN ma 17 znaków — duplikaty podświetlają się na czerwono.\n"
-        "•  Coś poszło nie tak? Zamknij plik BEZ zapisywania i otwórz ponownie — wróci ostatni zapisany stan."
+    # --- JAK WŁĄCZYĆ MAKRA -------------------------------------------------
+    makra_txt = (
+        "JAK WŁĄCZYĆ MAKRA (przyciski nie działają bez nich)\n"
+        "1.  Po pobraniu pliku: zamknij Excela → kliknij plik prawym przyciskiem → Właściwości → na dole zaznacz „Odblokuj” → OK.\n"
+        "2.  Otwórz plik i na żółtym pasku u góry kliknij „Włącz zawartość”.\n"
+        "3.  Jeśli pasek się nie pokazuje: Plik → Opcje → Centrum zaufania → Ustawienia Centrum zaufania → Ustawienia makr → "
+        "„Wyłącz makra języka VBA z powiadomieniem” → OK i otwórz plik ponownie.\n"
+        "Ilustrowane poradniki Microsoft (klikalne linki obok):  niebieski = włączanie makr,  drugi = odblokowanie pliku."
     )
-    f_rules = fmt(font_size=10, text_wrap=True, valign="top",
-                  bg_color="#FDE9E9", border=1, border_color=RED)
-    ws.merge_range(19, 1, 27, 10, zasady, f_rules)
+    ws.merge_range(23, 1, 27, 7, makra_txt, f_instr)
+    f_link = fmt(font_color="#0563C1", underline=1, font_size=10,
+                 text_wrap=True, valign="vcenter", align="center",
+                 bg_color="white", border=1, border_color="#D9D9D9")
+    ws.merge_range(23, 8, 24, 10, "", f_link)
+    ws.write_url(23, 8,
+                 "https://support.microsoft.com/pl-pl/office/"
+                 "w%C5%82%C4%85czanie-lub-wy%C5%82%C4%85czanie-makr-w-plikach-"
+                 "pakietu-microsoft-365-12b036fd-d140-4e74-b45e-16fed1a7e5c6",
+                 f_link, "▶ Poradnik: włączanie makr (z obrazkami)")
+    ws.merge_range(26, 8, 27, 10, "", f_link)
+    ws.write_url(26, 8,
+                 "https://support.microsoft.com/pl-pl/topic/"
+                 "zablokowano-potencjalnie-niebezpieczne-makro-"
+                 "0952faa0-37e7-4316-b61d-5b5ed6024216",
+                 f_link, "▶ Poradnik: plik zablokowany po pobraniu")
     f_leg_y = fmt(bg_color="#FFF9C4", border=1, border_color="#9E9E9E",
                   align="center", font_size=9)
     f_leg_g = fmt(bg_color="#C6EFCE", border=1, border_color="#9E9E9E",
