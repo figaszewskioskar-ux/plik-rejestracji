@@ -101,15 +101,9 @@ def load_data():
               m_dealer.get(z[4], z[4]), fix_urzad(z[5]), z[6], z[7], z[8], z[9])
              for z in zarej]
 
-    # Arkusz4 (dawne "Pilne") zasila wzór DO REJESTRACJI: marka, model, VIN
+    # DO REJESTRACJI startuje pusta — wzór wypełnia użytkownik
     # krotka: (marka, model, vin, dealer, wsp, urzad, dzl, komplet, brakuje, uwagi)
     dorej = []
-    for r in wb["Arkusz4"].iter_rows(min_row=2, max_col=2, values_only=True):
-        nm, vin = s(r[0]), s(r[1])
-        if not (nm or vin) or (vin or "").upper() == "VIN":
-            continue
-        marka, _, model = (nm or "").partition(" ")
-        dorej.append((marka or None, model or None, vin) + (None,) * 7)
     return wrej, zarej, dorej
 
 
