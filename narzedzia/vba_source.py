@@ -16,6 +16,11 @@ Private Sub Workbook_Open()
     ' (gdy sesja Excela byla w trybie recznym, formuly pokazywaly 0 / 1900-01).
     Application.Calculation = xlCalculationAutomatic
     Application.CalculateFullRebuild
+    ' ochrona formul i naglowkow (makra moga pisac, uzytkownik nie)
+    On Error Resume Next
+    ThisWorkbook.Worksheets("PULPIT").Protect UserInterfaceOnly:=True
+    ThisWorkbook.Worksheets("PODSUMOWANIE").Protect UserInterfaceOnly:=True
+    On Error GoTo 0
     Module1.StartZegar
     Module1.SprawdzArchiwizacje
 End Sub
@@ -85,7 +90,7 @@ End Sub
 
 Private Sub PaintYellow(ws As Worksheet, r As Long)
     ' Wiersz oczekujacy na rejestracje = zolty (konwencja z pliku zrodlowego)
-    PaintRow ws, r, 9, RGB(255, 249, 196)
+    PaintRow ws, r, 11, RGB(255, 249, 196)
 End Sub
 
 Private Sub PaintGreen(ws As Worksheet, r As Long)
@@ -126,11 +131,16 @@ Sub DodajWniosek()
     ws.Cells(r, 7).NumberFormat = "yyyy-mm-dd"
     ws.Cells(r, 8).Formula = "=IF($G" & r & "=" & Chr(34) & Chr(34) & _
         "," & Chr(34) & Chr(34) & ",TODAY()-$G" & r & ")"
-    ws.Cells(r, 9).Value = ws.Cells(ROW_FORM, 9).Value          ' Uwagi
+    If IsDate(ws.Cells(ROW_FORM, 9).Value) Then                  ' Plan. odbior
+        ws.Cells(r, 9).Value = CDate(ws.Cells(ROW_FORM, 9).Value)
+        ws.Cells(r, 9).NumberFormat = "yyyy-mm-dd"
+    End If
+    ws.Cells(r, 10).Value = ws.Cells(ROW_FORM, 10).Value        ' Osoba
+    ws.Cells(r, 11).Value = ws.Cells(ROW_FORM, 11).Value        ' Uwagi
     PaintYellow ws, r
 
     ws.Range(ws.Cells(ROW_FORM, 1), ws.Cells(ROW_FORM, 7)).ClearContents
-    ws.Cells(ROW_FORM, 9).ClearContents
+    ws.Range(ws.Cells(ROW_FORM, 9), ws.Cells(ROW_FORM, 11)).ClearContents
     MsgBox "Wniosek dodany do rejestru (wiersz " & r & ").", vbInformation, "99rent"
 End Sub
 
@@ -271,7 +281,7 @@ Sub PrzywrocZaznaczone()
             End If
             wsW.Cells(rz, 8).Formula = "=IF($G" & rz & "=" & Chr(34) & Chr(34) & _
                 "," & Chr(34) & Chr(34) & ",TODAY()-$G" & rz & ")"
-            wsW.Cells(rz, 9).Value = wsZ.Cells(rw, 10).Value     ' Uwagi
+            wsW.Cells(rz, 11).Value = wsZ.Cells(rw, 10).Value    ' Uwagi
             PaintYellow wsW, rz
             n = n + 1
         End If
@@ -403,7 +413,7 @@ Sub PrzeniesWnioski()
             wsW.Cells(r, 7).NumberFormat = "yyyy-mm-dd"
             wsW.Cells(r, 8).Formula = "=IF($G" & r & "=" & Chr(34) & Chr(34) & _
                 "," & Chr(34) & Chr(34) & ",TODAY()-$G" & r & ")"
-            wsW.Cells(r, 9).Value = wsI.Cells(rw, 10).Value   ' Uwagi
+            wsW.Cells(r, 11).Value = wsI.Cells(rw, 10).Value  ' Uwagi
             PaintYellow wsW, r
             n = n + 1
         End If
@@ -524,7 +534,7 @@ Sub ZarejestrujZaznaczone()
                 ",$H" & rz & "=" & Chr(34) & Chr(34) & _
                 ",$H" & rz & "<$G" & rz & ")," & Chr(34) & Chr(34) & _
                 ",$H" & rz & "-$G" & rz & ")"
-            wsZ.Cells(rz, 10).Value = wsW.Cells(rw, 9).Value     ' Uwagi
+            wsZ.Cells(rz, 10).Value = wsW.Cells(rw, 11).Value    ' Uwagi
             PaintGreen wsZ, rz
             n = n + 1
         End If
@@ -1094,6 +1104,13 @@ Sub GenerujRaport()
     For c = 2 To 7
         If ws.Columns(c).ColumnWidth < 14 Then ws.Columns(c).ColumnWidth = 14
     Next c
+
+    ' stopka
+    If n > 0 Then r = r + 1
+    ws.Cells(r + 1, 2).Value = "Stworzone przez: Oskar Figaszewski"
+    ws.Cells(r + 1, 2).Font.Italic = True
+    ws.Cells(r + 1, 2).Font.Size = 9
+    ws.Cells(r + 1, 2).Font.Color = RGB(127, 127, 127)
 
     plik = SciezkaArchiwum() & Application.PathSeparator & _
         "Raport_99rent_" & Format(Now, "yyyy-mm-dd_hhmm") & ".xlsx"

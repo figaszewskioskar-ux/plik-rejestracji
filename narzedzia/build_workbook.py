@@ -63,6 +63,29 @@ def _uwagi_data_rej(u):
     return dt, rest
 
 
+def _uwagi_odbior(u):
+    """Uwagi typu 'ODBIOR 13.08' / 'DAWID ODBIERA 13.08.2026':
+    zwraca (planowany odbiór, osoba); uwagi zostają bez zmian."""
+    if not u or not re.search(r"odbi[oó]r|odbierz|odbiera", u, re.I):
+        return None, None
+    dt = None
+    m = re.search(r"(\d{1,2})\.(\d{1,2})(?:\.(\d{2,4}))?", u)
+    if m:
+        dd, mm = int(m.group(1)), int(m.group(2))
+        yy = int(m.group(3)) if m.group(3) else datetime.date.today().year
+        if yy < 100:
+            yy += 2000
+        try:
+            dt = datetime.datetime(yy, mm, dd)
+        except ValueError:
+            dt = None
+    osoba = None
+    mo = re.search(r"([A-ZĄĆĘŁŃÓŚŹŻ][\w]*)\s+ODBIERA", u, re.I)
+    if mo:
+        osoba = mo.group(1).capitalize()
+    return dt, osoba
+
+
 def load_data():
     wb = openpyxl.load_workbook(SOURCE, data_only=True)
     def s(v):
@@ -118,8 +141,11 @@ def load_data():
             return v
         return urz_canon_by_key.get(_norm_key(v), v)
 
+    # wrej: (marka, model, vin, dealer, wsp, urzad, dzl,
+    #        odbior, osoba, uwagi, is_red)
     wrej = [(m_marka.get(r[0], r[0]), r[1], r[2], m_dealer.get(r[3], r[3]),
-             m_wsp.get(r[4], r[4]), fix_urzad(r[5]), r[6], r[7], r[8])
+             m_wsp.get(r[4], r[4]), fix_urzad(r[5]), r[6])
+            + _uwagi_odbior(r[7]) + (r[7], r[8])
             for r in wrej]
     zarej = [(m_marka.get(z[0], z[0]), z[1], z[2], z[3],
               m_dealer.get(z[4], z[4]), fix_urzad(z[5]), z[6], z[7], z[8], z[9])
@@ -203,14 +229,21 @@ def load_state(path):
     synth_state = set()
     wrej = []
     ws = wb["W rejestracji"]
+    # nowy układ ma kolumny Planowany odbiór (I) i Osoba prowadząca (J)
+    nowy_w = str(ws.cell(row=HDR_ROW, column=9).value or "").startswith("Planowany")
     for r in range(DATA_ROW, ws.max_row + 1):
-        vals = [ws.cell(row=r, column=c).value for c in range(1, 10)]
+        vals = [ws.cell(row=r, column=c).value for c in range(1, 12)]
         if not any(s(v) for v in vals[:7]):
             continue
         f = ws.cell(row=r, column=1).fill
         rgb = str(f.fgColor.rgb) if f.patternType == "solid" else ""
+        if nowy_w:
+            odb, osoba, uw = vals[8], s(vals[9]), s(vals[10])
+        else:
+            uw = s(vals[8])
+            odb, osoba = _uwagi_odbior(uw)
         wrej.append((s(vals[0]), s(vals[1]), s(vals[2]), s(vals[3]),
-                     s(vals[4]), s(vals[5]), vals[6], s(vals[8]),
+                     s(vals[4]), s(vals[5]), vals[6], odb, osoba, uw,
                      rgb == "FFFFC7CE"))
     def rows_of(ws, first):
         out = []
@@ -345,6 +378,8 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
     f_auto = fmt(bg_color="#E7E6E6", border=1, border_color="#BFBFBF",
                  italic=True, font_color="#7F7F7F", align="center",
                  valign="vcenter")
+    f_input_free = fmt(bg_color=YELLOW, border=1, border_color="#BFBFBF",
+                       valign="vcenter", locked=False)
     f_text = fmt()
     f_date = fmt(num_format="yyyy-mm-dd")
     f_int = fmt(num_format="0", align="center")
@@ -427,8 +462,8 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
     ws.hide_gridlines(2)
     ws.set_column("A:A", 2)
     ws.set_column("B:C", 14)
-    ws.set_column("D:K", 12)
-    header_band(ws, "  RAPORT REJESTRACJI POJAZDÓW", 11)
+    ws.set_column("D:O", 12)
+    header_band(ws, "  RAPORT REJESTRACJI POJAZDÓW", 15)
     f_clock = fmt(bold=True, font_size=12, font_color=DARK, align="right",
                   num_format="yyyy-mm-dd  hh:mm:ss")
     ws.write(1, 8, "stan na:", fmt(font_size=9, font_color="#7F7F7F",
@@ -449,6 +484,13 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
         ("=IF((%s)=0,\"—\",ROUND((%s)/(%s),1))" % (cnt_i, sum_i, cnt_i),
          "ŚREDNI CZAS\nREJESTRACJI (DNI)"),
         ("=" + cnt_mies, "ZAREJESTROWANE\nW TYM MIESIĄCU"),
+        ("=COUNTIFS('W rejestracji'!$I$%d:$I$%d,\">=\"&TODAY(),"
+         "'W rejestracji'!$I$%d:$I$%d,\"<=\"&(TODAY()+1))"
+         % (DATA_ROW, LAST, DATA_ROW, LAST),
+         "ODBIORY\nDZIŚ / JUTRO"),
+        ("=COUNTIF('W rejestracji'!$G$%d:$G$%d,\"<=\"&(TODAY()-25))"
+         % (DATA_ROW, LAST),
+         "TERMIN 30 DNI\nZOSTAŁO ≤ 5 DNI"),
     ]
     col = 3
     for formula, label in kpis:
@@ -475,7 +517,9 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
         "1.  Przy otwarciu kliknij „Włącz zawartość” — przyciski wymagają włączonych makr. Jeśli Excel blokuje makra: zamknij plik, "
         "kliknij go prawym przyciskiem → Właściwości → zaznacz „Odblokuj” → OK i otwórz ponownie.\n"
         "2.  W REJESTRACJI — pojazdy oczekujące (żółte wiersze). Nowy wniosek wpisujesz w formularzu (wiersz 5) i klikasz DODAJ WNIOSEK. "
-        "Kolumna „Dni od złożenia” liczy się sama i podświetla pojazdy czekające zbyt długo (pomarańczowy > 10 dni, czerwony > 21 dni).\n"
+        "Kolumna „Dni od złożenia” liczy się sama i podświetla pojazdy czekające zbyt długo (pomarańczowy > 10 dni, czerwony > 21 dni); "
+        "w kolumnach „Planowany odbiór” i „Osoba prowadząca” pilnujesz odbiorów — karty ODBIORY DZIŚ/JUTRO i TERMIN 30 DNI na PULPICIE liczą się z nich same. "
+        "Wyszukiwarka VIN na dole PULPITU pokazuje, w którym arkuszu jest pojazd.\n"
         "3.  DO REJESTRACJI — wzór pojazdów przed złożeniem: wklejasz wiele naraz, oznaczasz komplet dokumentów (TAK/NIE, przy NIE wpisujesz czego brakuje) "
         "i przyciskiem IMPORTUJ DO REJESTRU dodajesz je do rejestru (zaznaczenie wierszy = import tylko wybranych; przenoszą się tylko wiersze z kompletem).\n"
         "4.  Po odebraniu rejestracji: zaznacz pojazdy w W REJESTRACJI i kliknij ZAREJESTRUJ ZAZNACZONE — przechodzą do katalogu "
@@ -499,32 +543,60 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
     ws.merge_range(19, 5, 19, 6, "zarejestrowany", f_leg_g)
     ws.merge_range(19, 7, 19, 8, "wymaga uwagi / zaległy", f_leg_r)
 
+    # --- SZUKAJ VIN --------------------------------------------------------
+    ws.write(21, 1, "SZUKAJ VIN:", f_lbl)
+    ws.merge_range(21, 3, 21, 4, "", f_input_free)
+    ws.write(22, 3, "wpisz pełny VIN i Enter", f_note)
+    SV = "$D$22"
+    szuk = [("'W rejestracji'", DATA_ROW, LAST, "W REJESTRACJI"),
+            ("Zarejestrowane", DATA_ROW, LAST, "ZAREJESTROWANY (katalog)"),
+            ("'Do rejestracji'", DATA_ROW, DATA_ROW + 299, "DO REJESTRACJI")] + \
+           [("'Archiwum %s'" % k, ARCH_DATA, 5000,
+             "ZAREJESTROWANY (Archiwum %s)" % k) for k in sorted(stare_by_month)]
+    st_f = '"NIE ZNALEZIONO"'
+    poj_f = '""'
+    for sh, a, b, lab in reversed(szuk):
+        cnt = "COUNTIF(%s!$C$%d:$C$%d,%s)>0" % (sh, a, b, SV)
+        st_f = 'IF(%s,"%s",%s)' % (cnt, lab, st_f)
+        idx = ('T(INDEX(%s!$A$%d:$A$%d,MATCH(%s,%s!$C$%d:$C$%d,0)))&" "&'
+               'T(INDEX(%s!$B$%d:$B$%d,MATCH(%s,%s!$C$%d:$C$%d,0)))'
+               % (sh, a, b, SV, sh, a, b, sh, a, b, SV, sh, a, b))
+        poj_f = 'IF(%s,%s,%s)' % (cnt, idx, poj_f)
+    ws.merge_range(21, 5, 21, 7, "", f_val_box)
+    ws.write_formula(21, 5, '=IF(%s="","",%s)' % (SV, st_f), f_val_box)
+    ws.merge_range(21, 8, 21, 10, "", f_tbl_text)
+    ws.write_formula(21, 8, '=IF(%s="","",TRIM(%s))' % (SV, poj_f), f_tbl_text)
+
+    ws.write(24, 1, "Stworzone przez: Oskar Figaszewski", f_note)
+
     # ========================================================= W REJESTRACJI
     ws = wb.add_worksheet("W rejestracji")
     sheet_order.append(ws)
     ws.set_tab_color("#F4A100")
     headers = ["Marka", "Model", "VIN", "Dealer", "Współwłaściciel", "Urząd",
-               "Data złożenia", "Dni od złożenia", "Uwagi"]
-    widths = [14, 20, 23, 17, 17, 15, 14, 14, 32]
-    colfmts = [f_text, f_text, f_text, f_text, f_text, f_text, f_date, f_int, f_text]
+               "Data złożenia", "Dni od złożenia", "Planowany odbiór",
+               "Osoba prowadząca", "Uwagi"]
+    widths = [14, 20, 23, 17, 17, 15, 14, 14, 16, 17, 32]
+    colfmts = [f_text, f_text, f_text, f_text, f_text, f_text, f_date, f_int,
+               f_date, f_text, f_text]
     for c, (w, cf) in enumerate(zip(widths, colfmts)):
         ws.set_column(c, c, w, cf)
-    ws.set_column(9, 9, 2)
-    ws.set_column(10, 10, 22)
-    header_band(ws, "  POJAZDY W TRAKCIE REJESTRACJI", 9)
-    nav_button(ws, 10)
+    ws.set_column(11, 11, 2)
+    ws.set_column(12, 12, 22)
+    header_band(ws, "  POJAZDY W TRAKCIE REJESTRACJI", 11)
+    nav_button(ws, 12)
     ws.merge_range(1, 0, 1, 1, "POJAZDY W REJESTRACJI", f_cnt_lbl)
     ws.write_formula(
         1, 2, "=SUMPRODUCT(--(($A$%d:$A$%d&$C$%d:$C$%d)<>\"\"))"
         % (DATA_ROW, LAST, DATA_ROW, LAST), f_cnt_num)
 
-    ws.merge_range(2, 0, 2, 8,
+    ws.merge_range(2, 0, 2, 10,
                    "FORMULARZ — NOWY WNIOSEK:  wypełnij żółte pola i dodaj przez DO REJESTRACJI lub wpisz bezpośrednio w tabeli",
                    f_form_title)
     for c, h in enumerate(headers):
         ws.write(3, c, h, f_form_label)
-    for c in range(9):
-        if c == 6:
+    for c in range(11):
+        if c in (6, 8):
             ws.write_blank(FORM_ROW - 1, c, None, f_input_date)
         elif c == 7:
             ws.write(FORM_ROW - 1, c, "auto", f_auto)
@@ -532,10 +604,10 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
             ws.write_blank(FORM_ROW - 1, c, None, f_input)
     ws.set_row(FORM_ROW - 1, 22)
     if with_vba:
-        ws.insert_button(6, 10, {"macro": "ZarejestrujZaznaczone",
+        ws.insert_button(6, 12, {"macro": "ZarejestrujZaznaczone",
                                  "caption": "ZAREJESTRUJ ZAZNACZONE ▶",
                                  "width": 170, "height": 34})
-        ws.write(9, 10, "Zaznacz wiersze pojazdów i kliknij, aby przenieść "
+        ws.write(9, 12, "Zaznacz wiersze pojazdów i kliknij, aby przenieść "
                  "je do katalogu ZAREJESTROWANE (nr rej. wpiszesz tam w kolumnie D).",
                  f_note)
 
@@ -545,26 +617,28 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
 
     r = DATA_ROW - 1  # 0-indexed
     for row in wrej:
-        marka, model, vin, dealer, wsp, urzad, dzl, uwagi, is_red = row
+        (marka, model, vin, dealer, wsp, urzad, dzl,
+         odbior, osoba, uwagi, is_red) = row
         ftxt = f_text_red if is_red else f_text_y
         fdat = f_date_red if is_red else f_date_y
         fint = f_int_red if is_red else f_int_y
         for c, v in ((0, marka), (1, model), (2, vin), (3, dealer),
-                     (4, wsp), (5, urzad), (8, uwagi)):
+                     (4, wsp), (5, urzad), (9, osoba), (10, uwagi)):
             if v is not None:
                 ws.write_string(r, c, v, ftxt)
             else:
                 ws.write_blank(r, c, None, ftxt)
-        if dzl is not None:
-            ws.write_datetime(r, 6, dzl, fdat)
-        else:
-            ws.write_blank(r, 6, None, fdat)
+        for c, v in ((6, dzl), (8, odbior)):
+            if v is not None:
+                ws.write_datetime(r, c, v, fdat)
+            else:
+                ws.write_blank(r, c, None, fdat)
         ws.write_formula(
             r, 7, '=IF($G%d="","",TODAY()-$G%d)' % (r + 1, r + 1), fint)
         r += 1
     last_data = r  # 0-indexed row after last
 
-    ws.autofilter(HDR_ROW - 1, 0, LAST - 1, 8)
+    ws.autofilter(HDR_ROW - 1, 0, LAST - 1, 10)
     ws.freeze_panes(HDR_ROW, 0)
     ws.conditional_format(DATA_ROW - 1, 7, LAST - 1, 7,
                           {"type": "cell", "criteria": ">", "value": 21,
@@ -574,6 +648,12 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
                            "minimum": 11, "maximum": 21, "format": f_amber})
     ws.conditional_format(DATA_ROW - 1, 2, LAST - 1, 2,
                           {"type": "duplicate", "format": f_red})
+    # planowany odbiór dziś/jutro — podświetl na zielono
+    ws.conditional_format(DATA_ROW - 1, 8, LAST - 1, 8,
+                          {"type": "formula",
+                           "criteria": '=AND($I%d<>"",$I%d<=TODAY()+1)'
+                           % (DATA_ROW, DATA_ROW),
+                           "format": f_ok})
     nl = len(marki)
     ws.data_validation(FORM_ROW - 1, 0, FORM_ROW - 1, 0,
                        {"validate": "list", "source": "=Listy!$A$2:$A$%d" % (nl + 1),
@@ -600,6 +680,15 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
                         "input_title": "Data złożenia",
                         "input_message": "Wybierz datę z listy (ostatnie 31 dni) "
                                          "albo wpisz RRRR-MM-DD. Puste pole = dziś."})
+    ws.data_validation(FORM_ROW - 1, 8, FORM_ROW - 1, 8,
+                       {"validate": "list", "source": "=Listy!$J$2:$J$16",
+                        "show_error": False, "show_input": True,
+                        "input_title": "Planowany odbiór",
+                        "input_message": "Wybierz datę z listy (14 dni w przód) "
+                                         "albo wpisz RRRR-MM-DD."})
+    ws.data_validation(DATA_ROW - 1, 8, LAST - 1, 8,
+                       {"validate": "list", "source": "=Listy!$J$2:$J$16",
+                        "show_error": False})
 
     # ===================== DO REJESTRACJI (wzór + import hurtowy) ==========
     ws = wb.add_worksheet("Do rejestracji")
@@ -855,7 +944,7 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
     for i, (label, lcol, n) in enumerate(filt):
         rr = FT + 1 + i
         ws.write(rr, 8, label, f_tbl_text)
-        ws.write_string(rr, 9, "(wszystkie)", f_input)
+        ws.write_string(rr, 9, "(wszystkie)", f_input_free)
         ws.data_validation(rr, 9, rr, 9,
                            {"validate": "list",
                             "source": "=Listy!$%s$2:$%s$%d" % (lcol, lcol, n + 1),
@@ -1005,7 +1094,51 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
     ws.write(rr_w, col0, "RAZEM", f_total_lbl)
     ws.write_formula(rr_w, col0 + 1,
                      "=SUM(%s%d:%s%d)" % (cw, first_w, cw, rr_w), f_total_box)
+
+    # --- TEN TYDZIEŃ (od poniedziałku) -------------------------------------
+    tw0 = rr_w + 2
+    PON = "(TODAY()-WEEKDAY(TODAY(),2)+1)"
+    ws.merge_range(tw0, col0, tw0, col0 + 1, "  TEN TYDZIEŃ", f_sec_band)
+    ws.set_row(tw0, 22)
+    tyg = [
+        ("Złożone wnioski",
+         "=COUNTIF('W rejestracji'!$G$%(d)d:$G$%(l)d,\">=\"&%(p)s)"
+         "+COUNTIF(Zarejestrowane!$G$%(d)d:$G$%(l)d,\">=\"&%(p)s)"
+         % {"d": DATA_ROW, "l": LAST, "p": PON}),
+        ("Zarejestrowane",
+         "=" + zsum('COUNTIF(%%(s)s!$H$%%(a)d:$H$%%(b)d,">="&%(p)s)'
+                    % {"p": PON})),
+        ("Planowane odbiory",
+         "=COUNTIFS('W rejestracji'!$I$%(d)d:$I$%(l)d,\">=\"&%(p)s,"
+         "'W rejestracji'!$I$%(d)d:$I$%(l)d,\"<\"&(%(p)s+7))"
+         % {"d": DATA_ROW, "l": LAST, "p": PON}),
+    ]
+    for i, (lab, f) in enumerate(tyg):
+        ws.write(tw0 + 1 + i, col0, lab, f_tbl_text)
+        ws.write_formula(tw0 + 1 + i, col0 + 1, f, f_val_box)
+
+    # --- WG OSOBY (prowadzący odbiory) -------------------------------------
+    osoby = canonical([r[8] for r in wrej])
+    if osoby:
+        os0 = tw0 + 5
+        ws.merge_range(os0, col0, os0, col0 + 1, "  WG OSOBY (odbiory)",
+                       f_sec_band)
+        ws.set_row(os0, 22)
+        ro = os0 + 1
+        for o in osoby:
+            ws.write(ro, col0, o, f_tbl_text)
+            ws.write_formula(ro, col0 + 1,
+                             "=COUNTIF('W rejestracji'!$J$%d:$J$%d,%s%d)"
+                             % (DATA_ROW, LAST, xl_col_to_name(col0), ro + 1),
+                             f_tbl_int)
+            ro += 1
+
     breakdown(12, "WG DEALERA", dealerzy, "D", "E")
+
+    stopka_r = max(FR + 6,
+                   (ro + 2 if osoby else tw0 + 6),
+                   4 + len(dealerzy) + 4)
+    ws.write(stopka_r, 1, "Stworzone przez: Oskar Figaszewski", f_note)
 
     # ================================================================ URZĘDY
     ws = wb.add_worksheet("URZĘDY")
@@ -1217,6 +1350,11 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
     for i in range(31):
         ws.write_formula(1 + i, 4, "=TODAY()-%d" % i, f_date)
     ws.set_column(4, 4, 14)
+    # J: daty w przód (planowany odbiór)
+    ws.write(0, 9, "Daty w przód", f_hdr)
+    for i in range(15):
+        ws.write_formula(1 + i, 9, "=TODAY()+%d" % i, f_date)
+    ws.set_column(9, 9, 14)
     # F-I: listy do filtrów PODSUMOWANIA ("(wszystkie)" + wartości)
     MIESIACE = ["2026-%02d" % m for m in range(5, 13)]
     for c, (title, vals) in enumerate([
