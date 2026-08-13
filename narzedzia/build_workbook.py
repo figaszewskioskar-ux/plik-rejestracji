@@ -348,6 +348,15 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
     dealerzy = canonical([r[3] for r in wrej] + [z[4] for z in zarch])
     wspolwl = canonical([r[4] for r in wrej])
 
+    def by_count(items, *value_lists):
+        """Kolejność malejąco wg łącznej liczby wystąpień w danych."""
+        cnt = collections.Counter()
+        for vals in value_lists:
+            for v in vals:
+                if v:
+                    cnt[v] += 1
+        return sorted(items, key=lambda x: (-cnt.get(x, 0), x.casefold()))
+
     wb = xlsxwriter.Workbook(path, {"remove_timezone": True})
     if with_vba:
         wb.add_vba_project(vba_bin)
@@ -1064,8 +1073,12 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
         ws.write_formula(rr, col0 + 2,
                          "=SUM(%s5:%s%d)" % (c2, c2, rr), f_total_box)
 
-    breakdown(4, "WG URZĘDU", URZEDY_CANON, "F", "F")
-    breakdown(8, "WG MARKI", marki, "A", "A")
+    breakdown(4, "WG URZĘDU",
+              by_count(URZEDY_CANON, [r[5] for r in wrej],
+                       [z[5] for z in zarch]), "F", "F")
+    breakdown(8, "WG MARKI",
+              by_count(marki, [r[0] for r in wrej],
+                       [z[0] for z in zarch]), "A", "A")
 
     # WG WSPÓŁWŁAŚCICIELA (FINANSUJĄCEGO) — pod tabelą WG URZĘDU
     col0 = 4
@@ -1077,7 +1090,7 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
     ws.write(rw0 + 1, col0 + 1, "W rejestracji", f_hdr)
     rr_w = rw0 + 2
     first_w = rr_w + 1  # 1-indeksowany pierwszy wiersz danych
-    for it in wspolwl:
+    for it in by_count(wspolwl, [r[4] for r in wrej]):
         ws.write(rr_w, col0, it, f_tbl_text)
         ws.write_formula(
             rr_w, col0 + 1,
@@ -1125,7 +1138,7 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
                        f_sec_band)
         ws.set_row(os0, 22)
         ro = os0 + 1
-        for o in osoby:
+        for o in by_count(osoby, [r[8] for r in wrej]):
             ws.write(ro, col0, o, f_tbl_text)
             ws.write_formula(ro, col0 + 1,
                              "=COUNTIF('W rejestracji'!$J$%d:$J$%d,%s%d)"
@@ -1133,7 +1146,9 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
                              f_tbl_int)
             ro += 1
 
-    breakdown(12, "WG DEALERA", dealerzy, "D", "E")
+    breakdown(12, "WG DEALERA",
+              by_count(dealerzy, [r[3] for r in wrej],
+                       [z[4] for z in zarch]), "D", "E")
 
     stopka_r = max(FR + 6,
                    (ro + 2 if osoby else tw0 + 6),
