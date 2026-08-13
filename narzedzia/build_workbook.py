@@ -4,6 +4,7 @@ or a formula-identical .xlsx copy for LibreOffice recalc verification)."""
 import calendar
 import collections
 import datetime
+import re
 import openpyxl
 import xlsxwriter
 from xlsxwriter.utility import xl_col_to_name
@@ -38,6 +39,28 @@ def _row_fill(cells):
                 rgb = v
         fills.append(rgb)
     return collections.Counter(fills).most_common(1)[0][0]
+
+
+def _uwagi_data_rej(u):
+    """Uwagi typu '12.08.2026 DATA REJESTRACJI' / 'zarejestrowane 12.08':
+    zwraca (data_rejestracji, uwagi bez tej frazy)."""
+    if not u or not re.search(r"data\s+rejestracji|zarejestrowan", u, re.I):
+        return None, u
+    m = re.search(r"(\d{1,2})\.(\d{1,2})(?:\.(\d{2,4}))?", u)
+    if not m:
+        return None, u
+    dd, mm = int(m.group(1)), int(m.group(2))
+    yy = int(m.group(3)) if m.group(3) else datetime.date.today().year
+    if yy < 100:
+        yy += 2000
+    try:
+        dt = datetime.datetime(yy, mm, dd)
+    except ValueError:
+        return None, u
+    rest = u.replace(m.group(0), "")
+    rest = re.sub(r"data\s+rejestracji|zarejestrowan\w*", "", rest, flags=re.I)
+    rest = re.sub(r"\s+", " ", rest).strip(" -–,.:;") or None
+    return dt, rest
 
 
 def load_data():
@@ -101,6 +124,17 @@ def load_data():
     zarej = [(m_marka.get(z[0], z[0]), z[1], z[2], z[3],
               m_dealer.get(z[4], z[4]), fix_urzad(z[5]), z[6], z[7], z[8], z[9])
              for z in zarej]
+
+    # data rejestracji zapisana w Uwagach ("12.08.2026 DATA REJESTRACJI",
+    # "zarejestrowane 12.08") -> kolumna Data rejestracji, Uwagi czyszczone
+    fixed = []
+    for z in zarej:
+        if z[7] is None:
+            dt, rest = _uwagi_data_rej(z[9])
+            if dt is not None:
+                z = z[:7] + (dt, z[8], rest)
+        fixed.append(z)
+    zarej = fixed
 
     # DO REJESTRACJI startuje pusta — wzór wypełnia użytkownik
     # krotka: (marka, model, vin, dealer, wsp, urzad, dzl, komplet, brakuje, uwagi)
@@ -944,11 +978,9 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
     breakdown(4, "WG URZĘDU", URZEDY_CANON, "F", "F")
     breakdown(8, "WG MARKI", marki, "A", "A")
 
-    # WG WSPÓŁWŁAŚCICIELA (FINANSUJĄCEGO) — obok WG DEALERA
-    col0 = 16
-    rw0 = 2
-    ws.set_column(16, 16, 20)
-    ws.set_column(17, 17, 16)
+    # WG WSPÓŁWŁAŚCICIELA (FINANSUJĄCEGO) — pod tabelą WG URZĘDU
+    col0 = 4
+    rw0 = 12
     ws.merge_range(rw0, col0, rw0, col0 + 1,
                    "  WG WSPÓŁWŁAŚCICIELA", f_sec_band)
     ws.set_row(rw0, 22)
