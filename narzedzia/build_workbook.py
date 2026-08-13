@@ -463,7 +463,6 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
     ws.merge_range(19, 3, 19, 4, "w rejestracji (złożone)", f_leg_y)
     ws.merge_range(19, 5, 19, 6, "zarejestrowany", f_leg_g)
     ws.merge_range(19, 7, 19, 8, "wymaga uwagi / zaległy", f_leg_r)
-    ws.write(21, 1, "Wygenerowano na podstawie pliku Raport_rejestracji.xlsx", f_note)
 
     # ========================================================= W REJESTRACJI
     ws = wb.add_worksheet("W rejestracji")
