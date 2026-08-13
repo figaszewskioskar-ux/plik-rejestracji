@@ -146,7 +146,7 @@ def load_data():
     #        odbior, osoba, uwagi, is_red)
     wrej = [(m_marka.get(r[0], r[0]), r[1], r[2], m_dealer.get(r[3], r[3]),
              m_wsp.get(r[4], r[4]), fix_urzad(r[5]), r[6])
-            + _uwagi_odbior(r[7]) + (r[7], None, None, r[8])
+            + _uwagi_odbior(r[7]) + (r[7], None, r[8])
             for r in wrej]
     zarej = [(m_marka.get(z[0], z[0]), z[1], z[2], z[3],
               m_dealer.get(z[4], z[4]), fix_urzad(z[5]), z[6], z[7], z[8], z[9])
@@ -245,10 +245,9 @@ def load_state(path):
             uw = s(vals[8])
             odb, osoba = _uwagi_odbior(uw)
         status = s(vals[11]) if ma_status else None
-        oplata = s(vals[12]) if ma_status else None
         wrej.append((s(vals[0]), s(vals[1]), s(vals[2]), s(vals[3]),
                      s(vals[4]), s(vals[5]), vals[6], odb, osoba, uw,
-                     status, oplata, rgb == "FFFFC7CE"))
+                     status, rgb == "FFFFC7CE"))
     def rows_of(ws, first):
         out = []
         for r in range(first, ws.max_row + 1):
@@ -619,22 +618,22 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
     ws.set_tab_color("#F4A100")
     headers = ["Marka", "Model", "VIN", "Dealer", "Współwłaściciel", "Urząd",
                "Data złożenia", "Dni od złożenia", "Planowany odbiór",
-               "Osoba prowadząca", "Uwagi", "Status", "Opłata"]
-    widths = [14, 20, 23, 17, 17, 15, 14, 14, 16, 17, 32, 15, 10]
+               "Osoba prowadząca", "Uwagi", "Status"]
+    widths = [14, 20, 23, 17, 17, 15, 14, 14, 16, 17, 32, 15]
     colfmts = [f_text, f_text, f_text, f_text, f_text, f_text, f_date, f_int,
-               f_date, f_text, f_text, f_text, f_text]
+               f_date, f_text, f_text, f_text]
     for c, (w, cf) in enumerate(zip(widths, colfmts)):
         ws.set_column(c, c, w, cf)
-    ws.set_column(13, 13, 2)
-    ws.set_column(14, 14, 22)
-    header_band(ws, "  POJAZDY W TRAKCIE REJESTRACJI", 13)
-    nav_button(ws, 14)
+    ws.set_column(12, 12, 2)
+    ws.set_column(13, 13, 22)
+    header_band(ws, "  POJAZDY W TRAKCIE REJESTRACJI", 12)
+    nav_button(ws, 13)
     ws.merge_range(1, 0, 1, 1, "POJAZDY W REJESTRACJI", f_cnt_lbl)
     ws.write_formula(
         1, 2, "=SUMPRODUCT(--(($A$%d:$A$%d&$C$%d:$C$%d)<>\"\"))"
         % (DATA_ROW, LAST, DATA_ROW, LAST), f_cnt_num)
 
-    ws.merge_range(2, 0, 2, 12,
+    ws.merge_range(2, 0, 2, 11,
                    "FORMULARZ — NOWY WNIOSEK:  wypełnij żółte pola i dodaj przez DO REJESTRACJI lub wpisz bezpośrednio w tabeli",
                    f_form_title)
     for c, h in enumerate(headers):
@@ -648,16 +647,16 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
             ws.write_blank(FORM_ROW - 1, c, None, f_input)
     ws.set_row(FORM_ROW - 1, 22)
     if with_vba:
-        ws.insert_button(6, 14, {"macro": "ZarejestrujZaznaczone",
+        ws.insert_button(6, 13, {"macro": "ZarejestrujZaznaczone",
                                  "caption": "ZAREJESTRUJ ZAZNACZONE ▶",
                                  "width": 170, "height": 34})
-        ws.write(9, 14, "Zaznacz wiersze pojazdów i kliknij, aby przenieść "
+        ws.write(9, 13, "Zaznacz wiersze pojazdów i kliknij, aby przenieść "
                  "je do katalogu ZAREJESTROWANE (nr rej. wpiszesz tam w kolumnie D).",
                  f_note)
-        ws.insert_button(12, 14, {"macro": "GenerujPrzelew",
+        ws.insert_button(12, 13, {"macro": "GenerujPrzelew",
                                   "caption": "PRZELEW (ZAZNACZONE)",
                                   "width": 170, "height": 34})
-        ws.write(15, 14, "Zaznacz wiersze pojazdów i kliknij — treść "
+        ws.write(15, 13, "Zaznacz wiersze pojazdów i kliknij — treść "
                  "przelewu (kwoty, konta, VIN-y w tytule) pojawi się "
                  "w zakładce PRZELEWY.", f_note)
 
@@ -668,13 +667,13 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
     r = DATA_ROW - 1  # 0-indexed
     for row in wrej:
         (marka, model, vin, dealer, wsp, urzad, dzl,
-         odbior, osoba, uwagi, status, oplata, is_red) = row
+         odbior, osoba, uwagi, status, is_red) = row
         ftxt = f_text_red if is_red else f_text_y
         fdat = f_date_red if is_red else f_date_y
         fint = f_int_red if is_red else f_int_y
         for c, v in ((0, marka), (1, model), (2, vin), (3, dealer),
                      (4, wsp), (5, urzad), (9, osoba), (10, uwagi),
-                     (11, status or "złożony"), (12, oplata)):
+                     (11, status or "złożony")):
             if v is not None:
                 ws.write_string(r, c, v, ftxt)
             else:
@@ -689,13 +688,10 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
         r += 1
     last_data = r  # 0-indexed row after last
 
-    ws.autofilter(HDR_ROW - 1, 0, LAST - 1, 12)
+    ws.autofilter(HDR_ROW - 1, 0, LAST - 1, 11)
     ws.freeze_panes(HDR_ROW, 0)
     ws.data_validation(DATA_ROW - 1, 11, LAST - 1, 11,
                        {"validate": "list", "source": "=Listy!$L$2:$L$4",
-                        "show_error": False})
-    ws.data_validation(DATA_ROW - 1, 12, LAST - 1, 12,
-                       {"validate": "list", "source": ["TAK", "NIE"],
                         "show_error": False})
     ws.conditional_format(DATA_ROW - 1, 11, LAST - 1, 11,
                           {"type": "cell", "criteria": "==",
@@ -703,12 +699,6 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
     ws.conditional_format(DATA_ROW - 1, 11, LAST - 1, 11,
                           {"type": "cell", "criteria": "==",
                            "value": '"do odbioru"', "format": f_ok})
-    ws.conditional_format(DATA_ROW - 1, 12, LAST - 1, 12,
-                          {"type": "cell", "criteria": "==",
-                           "value": '"NIE"', "format": f_red})
-    ws.conditional_format(DATA_ROW - 1, 12, LAST - 1, 12,
-                          {"type": "cell", "criteria": "==",
-                           "value": '"TAK"', "format": f_ok})
     ws.conditional_format(DATA_ROW - 1, 7, LAST - 1, 7,
                           {"type": "cell", "criteria": ">", "value": 21,
                            "format": f_red})
@@ -931,13 +921,10 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
     ws.conditional_format(DATA_ROW - 1, 10, LAST - 1, 10,
                           {"type": "cell", "criteria": "==",
                            "value": '"wydany do floty"', "format": f_ok})
-    ws.autofilter(HDR_ROW - 1, 0, LAST - 1, 12)
+    ws.autofilter(HDR_ROW - 1, 0, LAST - 1, 11)
     ws.freeze_panes(HDR_ROW, 0)
     ws.data_validation(DATA_ROW - 1, 11, LAST - 1, 11,
                        {"validate": "list", "source": "=Listy!$L$2:$L$4",
-                        "show_error": False})
-    ws.data_validation(DATA_ROW - 1, 12, LAST - 1, 12,
-                       {"validate": "list", "source": ["TAK", "NIE"],
                         "show_error": False})
     ws.conditional_format(DATA_ROW - 1, 11, LAST - 1, 11,
                           {"type": "cell", "criteria": "==",
@@ -945,12 +932,6 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
     ws.conditional_format(DATA_ROW - 1, 11, LAST - 1, 11,
                           {"type": "cell", "criteria": "==",
                            "value": '"do odbioru"', "format": f_ok})
-    ws.conditional_format(DATA_ROW - 1, 12, LAST - 1, 12,
-                          {"type": "cell", "criteria": "==",
-                           "value": '"NIE"', "format": f_red})
-    ws.conditional_format(DATA_ROW - 1, 12, LAST - 1, 12,
-                          {"type": "cell", "criteria": "==",
-                           "value": '"TAK"', "format": f_ok})
     ws.conditional_format(DATA_ROW - 1, 2, LAST - 1, 2,
                           {"type": "duplicate", "format": f_red})
 
@@ -1568,6 +1549,13 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
         ws.freeze_panes(ARCH_DATA - 1, 0)
         ws.autofilter(ARCH_DATA - 2, 0,
                       ARCH_DATA - 2 + len(stare_by_month[klucz]), 9)
+
+    # ochrona z haslem juz na poziomie pliku (dziala tez bez makr);
+    # komorki danych sa odblokowane, wiec praca jest mozliwa
+    for s in sheet_order:
+        s.protect("99rent", {"autofilter": True, "sort": True,
+                             "format_cells": True, "format_rows": True,
+                             "insert_rows": True, "delete_rows": True})
 
     if with_vba:
         for i, s in enumerate(sheet_order):

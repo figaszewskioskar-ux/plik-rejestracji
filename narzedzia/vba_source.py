@@ -21,10 +21,11 @@ Private Sub Workbook_Open()
     Dim wsO As Worksheet
     On Error Resume Next
     For Each wsO In ThisWorkbook.Worksheets
-        wsO.Protect UserInterfaceOnly:=True, AllowFiltering:=True, _
-            AllowSorting:=True, AllowFormattingCells:=True, _
-            AllowFormattingRows:=True, AllowInsertingRows:=True, _
-            AllowDeletingRows:=True
+        wsO.Unprotect "99rent"
+        wsO.Protect Password:="99rent", UserInterfaceOnly:=True, _
+            AllowFiltering:=True, AllowSorting:=True, _
+            AllowFormattingCells:=True, AllowFormattingRows:=True, _
+            AllowInsertingRows:=True, AllowDeletingRows:=True
     Next wsO
     On Error GoTo 0
     Module1.StartZegar
