@@ -102,13 +102,14 @@ def load_data():
              for z in zarej]
 
     # Arkusz4 (dawne "Pilne") zasila wzór DO REJESTRACJI: marka, model, VIN
+    # krotka: (marka, model, vin, dealer, wsp, urzad, dzl, komplet, brakuje, uwagi)
     dorej = []
     for r in wb["Arkusz4"].iter_rows(min_row=2, max_col=2, values_only=True):
         nm, vin = s(r[0]), s(r[1])
         if not (nm or vin) or (vin or "").upper() == "VIN":
             continue
         marka, _, model = (nm or "").partition(" ")
-        dorej.append((marka or None, model or None, vin, None, None, None))
+        dorej.append((marka or None, model or None, vin) + (None,) * 7)
     return wrej, zarej, dorej
 
 
@@ -170,6 +171,7 @@ def load_state(path):
     wb = openpyxl.load_workbook(path, data_only=True)
     def s(v):
         return str(v).strip() if v is not None and str(v).strip() else None
+    synth_state = set()
     wrej = []
     ws = wb["W rejestracji"]
     for r in range(DATA_ROW, ws.max_row + 1):
@@ -185,32 +187,55 @@ def load_state(path):
         out = []
         for r in range(first, ws.max_row + 1):
             v = [ws.cell(row=r, column=c).value for c in range(1, 11)]
-            if not s(v[2]):
+            if not (s(v[0]) or s(v[2])):   # wiersze bez VIN też zachowujemy
                 continue
-            out.append((s(v[0]), s(v[1]), s(v[2]), s(v[3]), s(v[4]),
-                        s(v[5]), v[6], v[7], None, s(v[9])))
+            t = (s(v[0]), s(v[1]), s(v[2]), s(v[3]), s(v[4]),
+                 s(v[5]), v[6], v[7], None, s(v[9]))
+            if v[7] is not None and v[8] is None:
+                # data rejestracji przybliżona (czas w pliku pusty) — nie
+                # odtwarzamy czasu rejestracji przy przebudowie
+                synth_state.add(id(t))
+            out.append(t)
         return out
     zarej = rows_of(wb["Zarejestrowane"], DATA_ROW)
     archiwa = {}
     for name in wb.sheetnames:
         if name.startswith("Archiwum "):
             archiwa[name.split()[1]] = rows_of(wb[name], 2)
+    # DO REJESTRACJI: (marka, model, vin, dealer, wsp, urzad, dzl, komplet,
+    # brakuje, uwagi) — czytamy nowy układ, starsze warianty konwertujemy
     dorej = []
     if "Do rejestracji" in wb.sheetnames:
-        for r in wb["Do rejestracji"].iter_rows(min_row=5, max_col=6,
-                                                values_only=True):
-            if any(s(v) for v in r[:6]):
-                dorej.append(tuple(s(v) for v in r[:6]))
+        d = wb["Do rejestracji"]
+        if str(d.cell(row=8, column=8).value or "").startswith("Komplet"):
+            # nowy układ: nagłówki w wierszu 8, dane od 9, 10 kolumn
+            for r in d.iter_rows(min_row=9, max_col=10, values_only=True):
+                vals = tuple(v if hasattr(v, "year") else s(v) for v in r[:10])
+                if any(vals[:7]):
+                    dorej.append(vals)
+        else:
+            # stary układ: nagłówki w wierszu 4, dane od 5, 6 kolumn
+            for r in d.iter_rows(min_row=5, max_col=6, values_only=True):
+                if any(s(v) for v in r[:6]):
+                    m, mo, vin, urz, kom, brak = (s(v) for v in r[:6])
+                    dorej.append((m, mo, vin, None, None, urz, None,
+                                  kom, brak, None))
     elif "Pilne" in wb.sheetnames:
-        # starsze pliki: lista "Pilne" (marka i model, VIN) -> wzór DO REJESTRACJI
         for r in wb["Pilne"].iter_rows(min_row=4, max_col=2, values_only=True):
             nm, vin = s(r[0]), s(r[1])
             if not (nm or vin) or (vin or "").upper() == "VIN":
                 continue
             marka, _, model = (nm or "").partition(" ")
-            dorej.append((marka or None, model or None, vin,
-                          None, None, None))
-    return wrej, zarej, archiwa, dorej
+            dorej.append((marka or None, model or None, vin) + (None,) * 7)
+    if "Import hurtowy" in wb.sheetnames:
+        # niedokończone wiersze importu nie giną — trafiają do DO REJESTRACJI
+        for r in wb["Import hurtowy"].iter_rows(min_row=9, max_col=8,
+                                                values_only=True):
+            if any(s(v) for v in r[:6]) or r[6] is not None:
+                m, mo, vin, de, wsp, urz = (s(v) for v in r[:6])
+                dorej.append((m, mo, vin, de, wsp, urz, r[6],
+                              None, None, s(r[7])))
+    return wrej, zarej, archiwa, dorej, synth_state
 
 
 def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
@@ -218,7 +243,7 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
     import os
     synth = set()  # wiersze z przybliżoną datą rejestracji (koniec miesiąca)
     if os.path.exists(STATE):
-        wrej, zarej, stare_by_month, dorej = load_state(STATE)
+        wrej, zarej, stare_by_month, dorej, synth = load_state(STATE)
     else:
         wrej, zarej, dorej = load_data()
         prog = (datetime.date.today().year, datetime.date.today().month)
@@ -400,7 +425,7 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
 
     if with_vba:
         navs = [("W REJESTRACJI", "IdzWRejestracji"),
-                ("IMPORT HURTOWY", "IdzImport"),
+                ("DO REJESTRACJI", "IdzImport"),
                 ("KATALOG ZAREJESTR.", "IdzZarejestrowane"),
                 ("PODSUMOWANIE", "IdzPodsumowanie")]
         col = 1
@@ -416,7 +441,8 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
         "kliknij go prawym przyciskiem → Właściwości → zaznacz „Odblokuj” → OK i otwórz ponownie.\n"
         "2.  W REJESTRACJI — pojazdy oczekujące (żółte wiersze). Nowy wniosek wpisujesz w formularzu (wiersz 5) i klikasz DODAJ WNIOSEK. "
         "Kolumna „Dni od złożenia” liczy się sama i podświetla pojazdy czekające zbyt długo (pomarańczowy > 10 dni, czerwony > 21 dni).\n"
-        "3.  IMPORT HURTOWY — wklejasz wiele pojazdów naraz i przyciskiem dodajesz je do rejestru (zaznaczenie wierszy = import tylko wybranych); urząd wybierzesz w rejestrze z listy w kolumnie F.\n"
+        "3.  DO REJESTRACJI — wzór pojazdów przed złożeniem: wklejasz wiele naraz, oznaczasz komplet dokumentów (TAK/NIE, przy NIE wpisujesz czego brakuje) "
+        "i przyciskiem IMPORTUJ DO REJESTRU dodajesz je do rejestru (zaznaczenie wierszy = import tylko wybranych; przenoszą się tylko wiersze z kompletem).\n"
         "4.  Po odebraniu rejestracji: zaznacz pojazdy w W REJESTRACJI i kliknij ZAREJESTRUJ ZAZNACZONE — przechodzą do katalogu "
         "ZAREJESTROWANE z licznikiem dni. Numer rejestracyjny wpisujesz wprost w kolumnie „Nr rejestracyjny” katalogu.\n"
         "5.  ZAREJESTROWANE — pojazd zarejestrowany wcześniej (poza rejestrem) dodasz bezpośrednio przyciskiem DODAJ DO KATALOGU; "
@@ -459,7 +485,7 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
         % (DATA_ROW, LAST, DATA_ROW, LAST), f_cnt_num)
 
     ws.merge_range(2, 0, 2, 8,
-                   "FORMULARZ — NOWY WNIOSEK:  wypełnij żółte pola i dodaj przez IMPORT HURTOWY lub wpisz bezpośrednio w tabeli",
+                   "FORMULARZ — NOWY WNIOSEK:  wypełnij żółte pola i dodaj przez DO REJESTRACJI lub wpisz bezpośrednio w tabeli",
                    f_form_title)
     for c, h in enumerate(headers):
         ws.write(3, c, h, f_form_label)
@@ -541,44 +567,83 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
                         "input_message": "Wybierz datę z listy (ostatnie 31 dni) "
                                          "albo wpisz RRRR-MM-DD. Puste pole = dziś."})
 
-    # ======================================================= IMPORT HURTOWY
-    ws = wb.add_worksheet("Import hurtowy")
+    # ===================== DO REJESTRACJI (wzór + import hurtowy) ==========
+    ws = wb.add_worksheet("Do rejestracji")
     sheet_order.append(ws)
-    ws.set_tab_color("#F9A825")
-    ihdr = ["Marka", "Model", "VIN", "Dealer", "Współwłaściciel", "Urząd",
-            "Data złożenia", "Uwagi"]
-    iw = [14, 20, 23, 17, 17, 15, 14, 32]
-    for c, w in enumerate(iw):
+    ws.set_tab_color("#E65100")
+    dhdr = ["Marka", "Model", "VIN", "Dealer", "Współwłaściciel", "Urząd",
+            "Data złożenia", "Komplet dokumentów?", "Czego brakuje", "Uwagi"]
+    dw = [14, 20, 23, 17, 17, 15, 14, 20, 30, 24]
+    for c, w in enumerate(dw):
         ws.set_column(c, c, w)
-    ws.set_column(8, 8, 2)
-    ws.set_column(9, 9, 26)
-    header_band(ws, "  IMPORT HURTOWY — WIELE POJAZDÓW NARAZ", 8)
-    nav_button(ws, 9)
+    ws.set_column(10, 10, 2)
+    ws.set_column(11, 11, 26)
+    header_band(ws, "  DO REJESTRACJI — WZÓR I IMPORT HURTOWY", 10)
+    nav_button(ws, 11)
+    DR_END = DATA_ROW - 1 + 299  # 0-indeksowany ostatni wiersz tabeli
+    ws.merge_range(1, 0, 1, 1, "POJAZDY DO REJESTRACJI", f_cnt_lbl)
+    ws.write_formula(
+        1, 2, "=SUMPRODUCT(--(($A$%d:$A$%d&$C$%d:$C$%d)<>\"\"))"
+        % (DATA_ROW, DR_END + 1, DATA_ROW, DR_END + 1), f_cnt_num)
 
-    ws.merge_range(2, 0, 2, 7,
+    ws.merge_range(2, 0, 2, 9,
                    "Wklej 10, 20, 30… pojazdów do tabeli (od wiersza 9) i kliknij "
                    "IMPORTUJ DO REJESTRU (możesz też zaznaczyć tylko wybrane wiersze)", f_form_title)
-    ws.merge_range(3, 0, 5, 7,
-                   "Wymagany jest VIN (kolumna C), reszta pól opcjonalna. "
-                   "Zaznacz wiersze do przeniesienia (bez zaznaczenia przenosi się "
-                   "wszystko). Pusta data złożenia = dzisiejsza data. Duplikaty VIN "
-                   "są pomijane. Wnioski trafiają do W REJESTRACJI na żółto, a urząd "
-                   "możesz wybrać tam z listy w kolumnie F.", f_instr)
+    ws.merge_range(3, 0, 5, 9,
+                   "Wzór: w kolumnie „Komplet dokumentów?” wybierz TAK / NIE — przy "
+                   "NIE wpisz, czego brakuje (wiersz podświetli się na czerwono, "
+                   "komplet na zielono). Import przenosi do W REJESTRACJI tylko "
+                   "wiersze z kompletem (TAK) i wypełnionymi kolumnami A–G; braki "
+                   "zostają podświetlone na czerwono. Bez zaznaczenia przenosi się "
+                   "wszystko, duplikaty VIN są pomijane.", f_instr)
     if with_vba:
-        ws.insert_button(2, 9, {"macro": "PrzeniesWnioski",
-                                "caption": "IMPORTUJ DO REJESTRU",
-                                "width": 180, "height": 44})
+        ws.insert_button(2, 11, {"macro": "PrzeniesWnioski",
+                                 "caption": "IMPORTUJ DO REJESTRU",
+                                 "width": 180, "height": 44})
 
-    for c, h in enumerate(ihdr):
+    for c, h in enumerate(dhdr):
         ws.write(HDR_ROW - 1, c, h, f_hdr)
     ws.set_row(HDR_ROW - 1, 28)
-    for rr in range(DATA_ROW - 1, DATA_ROW - 1 + 300):
-        for c in range(8):
+    for rr in range(DATA_ROW - 1, DR_END + 1):
+        for c in range(10):
             ws.write_blank(rr, c, None,
                            f_import_date if c == 6 else f_import)
-    ws.data_validation(DATA_ROW - 1, 6, DATA_ROW - 1 + 299, 6,
+    r = DATA_ROW - 1
+    for row10 in dorej:
+        for c, v in enumerate(row10[:10]):
+            if v is None:
+                continue
+            if hasattr(v, "year"):
+                ws.write_datetime(r, c, v, f_import_date)
+            else:
+                ws.write_string(r, c, str(v), f_import)
+        r += 1
+    ws.data_validation(DATA_ROW - 1, 3, DR_END, 3,
+                       {"validate": "list",
+                        "source": "=Listy!$B$2:$B$%d" % (len(dealerzy) + 1),
+                        "show_error": False})
+    ws.data_validation(DATA_ROW - 1, 4, DR_END, 4,
+                       {"validate": "list",
+                        "source": "=Listy!$D$2:$D$%d" % (len(wspolwl) + 1),
+                        "show_error": False})
+    ws.data_validation(DATA_ROW - 1, 5, DR_END, 5,
+                       {"validate": "list",
+                        "source": "=Listy!$C$2:$C$%d" % (len(URZEDY_CANON) + 1),
+                        "show_error": False})
+    ws.data_validation(DATA_ROW - 1, 6, DR_END, 6,
                        {"validate": "list", "source": "=Listy!$E$2:$E$32",
                         "show_error": False})
+    ws.data_validation(DATA_ROW - 1, 7, DR_END, 7,
+                       {"validate": "list", "source": ["TAK", "NIE"],
+                        "show_error": False})
+    ws.conditional_format(DATA_ROW - 1, 0, DR_END, 9,
+                          {"type": "formula",
+                           "criteria": '=$H%d="NIE"' % DATA_ROW,
+                           "format": f_red})
+    ws.conditional_format(DATA_ROW - 1, 0, DR_END, 9,
+                          {"type": "formula",
+                           "criteria": '=$H%d="TAK"' % DATA_ROW,
+                           "format": f_ok})
     ws.freeze_panes(HDR_ROW, 0)
 
     # ========================================================= ZAREJESTROWANE
@@ -907,61 +972,6 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
                      "=SUM(%s%d:%s%d)" % (cw, first_w, cw, rr_w), f_total_box)
     breakdown(12, "WG DEALERA", dealerzy, "D", "E")
 
-    # ======================================================== DO REJESTRACJI
-    DR_HDR = 4     # 1-indeksowany wiersz nagłówków tabeli
-    DR_LAST = 304  # ostatni wiersz wzoru (300 pozycji)
-    ws = wb.add_worksheet("Do rejestracji")
-    sheet_order.append(ws)
-    ws.set_tab_color("#E65100")
-    for c, w in enumerate([16, 24, 23, 18, 21, 44]):
-        ws.set_column(c, c, w)
-    ws.set_column(6, 6, 2)
-    ws.set_column(7, 7, 22)
-    header_band(ws, "  DO REJESTRACJI — POJAZDY DO ZŁOŻENIA", 6)
-    nav_button(ws, 7)
-    ws.merge_range(1, 0, 1, 1, "POJAZDY DO REJESTRACJI", f_cnt_lbl)
-    ws.write_formula(
-        1, 2, "=SUMPRODUCT(--(($A$%d:$A$%d&$C$%d:$C$%d)<>\"\"))"
-        % (DR_HDR + 1, DR_LAST, DR_HDR + 1, DR_LAST), f_cnt_num)
-    ws.write(2, 0, "Wzór: uzupełnij pojazd i urząd, w kolumnie „Komplet "
-             "dokumentów?” wybierz TAK / NIE — przy NIE wpisz w ostatniej "
-             "kolumnie, czego brakuje (wiersz podświetli się na czerwono, "
-             "komplet na zielono).", f_note)
-    for c, h in enumerate(["Marka", "Model", "VIN", "Urząd",
-                           "Komplet dokumentów?", "Czego brakuje"]):
-        ws.write(DR_HDR - 1, c, h, f_hdr)
-    ws.set_row(DR_HDR - 1, 24)
-    for r in range(DR_HDR, DR_LAST):
-        for c in range(6):
-            ws.write_blank(r, c, None, f_tbl_text)
-    r = DR_HDR
-    for marka, model, vin, urzad, komplet, brakuje in dorej:
-        for c, v in ((0, marka), (1, model), (2, vin), (3, urzad),
-                     (4, komplet), (5, brakuje)):
-            if v:
-                ws.write_string(r, c, str(v), f_tbl_text)
-        r += 1
-    ws.data_validation(DR_HDR, 3, DR_LAST - 1, 3,
-                       {"validate": "list",
-                        "source": "=Listy!$C$2:$C$%d" % (len(URZEDY_CANON) + 1),
-                        "input_title": "Urząd",
-                        "input_message": "Wybierz urząd z listy."})
-    ws.data_validation(DR_HDR, 4, DR_LAST - 1, 4,
-                       {"validate": "list", "source": ["TAK", "NIE"],
-                        "input_title": "Komplet dokumentów?",
-                        "input_message":
-                        "NIE = wpisz braki w kolumnie „Czego brakuje”."})
-    ws.conditional_format(DR_HDR, 0, DR_LAST - 1, 5,
-                          {"type": "formula",
-                           "criteria": '=$E%d="NIE"' % (DR_HDR + 1),
-                           "format": f_red})
-    ws.conditional_format(DR_HDR, 0, DR_LAST - 1, 5,
-                          {"type": "formula",
-                           "criteria": '=$E%d="TAK"' % (DR_HDR + 1),
-                           "format": f_ok})
-    ws.freeze_panes(DR_HDR, 0)
-
-    # ================================================================= LISTY
     # ================================================================ URZĘDY
     ws = wb.add_worksheet("URZĘDY")
     sheet_order.append(ws)

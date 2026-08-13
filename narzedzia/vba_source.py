@@ -291,10 +291,11 @@ Blad:
 End Sub
 
 ' ---------------------------------------------------------------------
-' Przycisk: IMPORTUJ DO REJESTRU (arkusz "Import hurtowy")
-' Wklejasz pojazdy w tabele wnioskow, zaznaczasz wiersze (albo nic -
+' Przycisk: IMPORTUJ DO REJESTRU (arkusz "Do rejestracji")
+' Wklejasz pojazdy w tabele wzoru, zaznaczasz wiersze (albo nic -
 ' wtedy bierze wszystkie) i klikasz: pojazdy przechodza do W rejestracji.
-' Urzad mozesz uzupelnic tutaj albo pozniej w rejestrze (lista w kol. F).
+' Wymagane kolumny A-G oraz komplet dokumentow = TAK (kolumna H);
+' braki zostaja podswietlone na czerwono i wiersz nie jest przenoszony.
 ' ---------------------------------------------------------------------
 Sub PrzeniesWnioski()
     Dim krok As String
@@ -306,7 +307,7 @@ Sub PrzeniesWnioski()
 
     On Error GoTo Blad
     krok = "start"
-    Set wsI = ThisWorkbook.Worksheets("Import hurtowy")
+    Set wsI = ThisWorkbook.Worksheets("Do rejestracji")
     Set wsW = ThisWorkbook.Worksheets("W rejestracji")
     Set wsZ = ThisWorkbook.Worksheets("Zarejestrowane")
     Set doPrzen = CreateObject("Scripting.Dictionary")
@@ -370,7 +371,7 @@ Sub PrzeniesWnioski()
     For i = 0 To UBound(arr)
         rw = arr(i)
         krok = "sprawdzanie wiersza " & rw
-        ' wszystkie pola poza Uwagami musza byc wypelnione
+        ' wymagane kolumny A-G oraz komplet dokumentow = TAK (kolumna H)
         pelny = True
         For c2 = 1 To 7
             If Trim(CStr(wsI.Cells(rw, c2).Value)) = "" Then
@@ -378,6 +379,10 @@ Sub PrzeniesWnioski()
                 wsI.Cells(rw, c2).Interior.Color = RGB(255, 199, 206)
             End If
         Next c2
+        If UCase(Trim(CStr(wsI.Cells(rw, 8).Value))) <> "TAK" Then
+            pelny = False
+            wsI.Cells(rw, 8).Interior.Color = RGB(255, 199, 206)
+        End If
         If Not pelny Then
             braki = braki + 1
             GoTo NastepnyWiersz
@@ -398,11 +403,11 @@ Sub PrzeniesWnioski()
             wsW.Cells(r, 7).NumberFormat = "yyyy-mm-dd"
             wsW.Cells(r, 8).Formula = "=IF($G" & r & "=" & Chr(34) & Chr(34) & _
                 "," & Chr(34) & Chr(34) & ",TODAY()-$G" & r & ")"
-            wsW.Cells(r, 9).Value = wsI.Cells(rw, 8).Value    ' Uwagi
+            wsW.Cells(r, 9).Value = wsI.Cells(rw, 10).Value   ' Uwagi
             PaintYellow wsW, r
             n = n + 1
         End If
-        wsI.Range(wsI.Cells(rw, 1), wsI.Cells(rw, 8)).Delete Shift:=xlUp
+        wsI.Range(wsI.Cells(rw, 1), wsI.Cells(rw, 10)).Delete Shift:=xlUp
 NastepnyWiersz:
     Next i
     Application.ScreenUpdating = True
@@ -412,8 +417,8 @@ NastepnyWiersz:
     If skipped > 0 Then msg = msg & vbCrLf & _
         "Pominieto (VIN juz istnieje): " & skipped & "."
     If braki > 0 Then msg = msg & vbCrLf & _
-        "NIE przeniesiono " & braki & " wiersza/y z pustymi polami " & _
-        "(podswietlone na czerwono) - wymagane wszystkie pola poza Uwagami."
+        "NIE przeniesiono " & braki & " wiersza/y (podswietlone na " & _
+        "czerwono) - wymagane kolumny A-G oraz komplet dokumentow = TAK."
     MsgBox msg, vbInformation, "99rent"
     StartZegar
     Exit Sub
@@ -1120,7 +1125,7 @@ Sub IdzPodsumowanie()
 End Sub
 
 Sub IdzImport()
-    Application.Goto ThisWorkbook.Worksheets("Import hurtowy").Range("A1"), True
+    Application.Goto ThisWorkbook.Worksheets("Do rejestracji").Range("A1"), True
 End Sub
 
 Sub IdzPulpit()
