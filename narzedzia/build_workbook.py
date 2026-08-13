@@ -1079,15 +1079,15 @@ def build(path, with_vba, vba_bin=None, logo="logo99rent.png",
                    "wszystkich miesięcy (katalog + Archiwum).", f_note)
 
     # --- zestawienie miesięczne: 05.2026 – 12.2026 -------------------------
-    ws.merge_range(11, 1, 11, 3, "  WG MIESIĄCA (05–12.2026)", f_sec_band)
-    ws.set_row(11, 22)
-    ws.write(12, 1, "Miesiąc", f_hdr)
-    ws.write(12, 2, "Złożone wnioski", f_hdr)
-    ws.write(12, 3, "Zarejestrowane", f_hdr)
+    ws.merge_range(16, 1, 16, 3, "  WG MIESIĄCA (05–12.2026)", f_sec_band)
+    ws.set_row(16, 22)
+    ws.write(17, 1, "Miesiąc", f_hdr)
+    ws.write(17, 2, "Złożone wnioski", f_hdr)
+    ws.write(17, 3, "Zarejestrowane", f_hdr)
     f_month = fmt(bg_color="white", border=1, border_color="#D9D9D9",
                   num_format="yyyy-mm", align="center", bold=True)
     for k in range(8):
-        rr = 13 + k  # 0-indexed
+        rr = 18 + k  # 0-indexed
         mcell = "$B$%d" % (rr + 1)
         ws.write_formula(rr, 1, "=DATE(2026,%d,1)" % (5 + k), f_month)
         ws.write_formula(
